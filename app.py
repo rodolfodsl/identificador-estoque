@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer, util
 st.set_page_config(page_title="Identificador de Estoque", layout="centered")
 st.title("👜 Identificador Visual de Estoque")
 
-# 1. Carregar modelo visual
+# 1. Carregar modelo visual de IA
 @st.cache_resource
 def carregar_modelo():
     return SentenceTransformer('clip-ViT-B-32')
@@ -30,26 +30,12 @@ def baixar_imagem(url):
     except Exception:
         return None
 
-# 2. Carregar produtos da planilha online
+# 2. Carregar produtos da base (Motor de Leitura)
 @st.cache_data(ttl=1800)
-def carregar_catalogo(url_planilha):
+def carregar_catalogo(fonte_dados):
     todos_produtos = []
-    
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-        }
-        
-        resposta = requests.get(url_planilha, headers=headers, allow_redirects=True)
-        
-        if b"<html" in resposta.content[:20].lower():
-            st.error("O OneDrive bloqueou o download automático. Verifique o link.")
-            return pd.DataFrame()
-            
-        arquivo_excel = BytesIO(resposta.content)
-        
-        # AQUI ESTÁ A SOLUÇÃO DO ERRO: engine='openpyxl'
-        abas_dict = pd.read_excel(arquivo_excel, engine='openpyxl', sheet_name=None)
+        abas_dict = pd.read_excel(fonte_dados, engine='openpyxl', sheet_name=None)
         
         for nome_aba, df in abas_dict.items():
             if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
@@ -78,7 +64,6 @@ def carregar_catalogo(url_planilha):
                 except Exception:
                     continue
     except Exception as e:
-        st.error(f"Erro técnico ao baixar ou ler a planilha: {e}")
         return pd.DataFrame()
 
     df_final = pd.DataFrame(todos_produtos)
@@ -97,49 +82,70 @@ def carregar_catalogo(url_planilha):
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
+# URL do OneDrive
 URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/IQQ5iErTMZvpIICrcQUAAAAAAeLF1Ps8OsfmWITa4LOxl04?download=1"
 
-with st.spinner("Lendo planilha e indexando fotos do estoque..."):
-    catalogo = carregar_catalogo(URL_ONEDRIVE)
+catalogo = pd.DataFrame()
+st.write("### 📂 Sincronização de Banco de Dados")
 
+# Tenta baixar do OneDrive primeiro
+try:
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    resposta = requests.get(URL_ONEDRIVE, headers=headers, timeout=10, allow_redirects=True)
+    
+    # Se o OneDrive não enviar HTML de erro, processa a planilha
+    if b"<html" not in resposta.content[:20].lower():
+        with st.spinner("Conectando ao OneDrive e indexando fotos..."):
+            catalogo = carregar_catalogo(BytesIO(resposta.content))
+except:
+    pass
+
+# Se falhar ou for bloqueado, mostra o "Plano B" (Upload Manual)
+if len(catalogo) == 0:
+    st.warning("⚠️ O OneDrive bloqueou a sincronização automática. Faça o upload manual da sua planilha abaixo:")
+    arquivo_up = st.file_uploader("Selecione sua planilha (.xlsx)", type=["xlsx"])
+    
+    if arquivo_up:
+        with st.spinner("Lendo arquivo e processando imagens do estoque... Isso pode levar um minuto..."):
+            catalogo = carregar_catalogo(arquivo_up)
+
+# Se conseguiu carregar produtos (seja via Link ou Upload), libera a Câmera
 if len(catalogo) > 0:
-    st.success(f"{len(catalogo)} produtos cadastrados e sincronizados com sucesso!")
-else:
-    st.warning("Nenhum produto encontrado. Tente novamente.")
+    st.success(f"✅ Sucesso! {len(catalogo)} produtos cadastrados na memória.")
+    
+    st.write("---")
+    foto_tirada = st.camera_input("Fotografe a peça para identificar:")
 
-st.write("---")
-foto_tirada = st.camera_input("Fotografe a peça para identificar:")
-
-if foto_tirada and len(catalogo) > 0:
-    img_busca = Image.open(foto_tirada).convert('RGB')
-    emb_busca = modelo.encode(img_busca)
-    
-    scores = []
-    for emb_prod in catalogo['embedding']:
-        sim = util.cos_sim(emb_busca, emb_prod).item()
-        scores.append(sim)
+    if foto_tirada:
+        img_busca = Image.open(foto_tirada).convert('RGB')
+        emb_busca = modelo.encode(img_busca)
         
-    catalogo['similaridade'] = scores
-    top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
-    
-    st.subheader("Itens Mais Prováveis Encontrados:")
-    
-    for idx, item in top_3.iterrows():
-        st.markdown(f"### 🏷️ {item['nome']}")
-        col_img, col_dados = st.columns([1, 2])
-        
-        with col_img:
-            img_ref = baixar_imagem(item['link'])
-            if img_ref:
-                st.image(img_ref, width=150, caption="Foto da Planilha")
-                
-        with col_dados:
-            st.write(f"**Código de Barras:** `{item['codigo_barras']}`")
-            st.write(f"**Aba / Categoria:** {item['categoria']}")
-            st.write(f"**Similaridade:** {item['similaridade']:.1%}")
+        scores = []
+        for emb_prod in catalogo['embedding']:
+            sim = util.cos_sim(emb_busca, emb_prod).item()
+            scores.append(sim)
             
-            if item['similaridade'] >= 0.75:
-                st.success("✅ **ALTA PROBABILIDADE (REPOSIÇÃO)**")
-            else:
-                st.warning("⚠️ Conferir detalhes visuais antes de cadastrar.")
-        st.divider()
+        catalogo['similaridade'] = scores
+        top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
+        
+        st.subheader("Itens Mais Prováveis Encontrados:")
+        
+        for idx, item in top_3.iterrows():
+            st.markdown(f"### 🏷️ {item['nome']}")
+            col_img, col_dados = st.columns([1, 2])
+            
+            with col_img:
+                img_ref = baixar_imagem(item['link'])
+                if img_ref:
+                    st.image(img_ref, width=150, caption="Foto da Planilha")
+                    
+            with col_dados:
+                st.write(f"**Código de Barras:** `{item['codigo_barras']}`")
+                st.write(f"**Aba / Categoria:** {item['categoria']}")
+                st.write(f"**Similaridade:** {item['similaridade']:.1%}")
+                
+                if item['similaridade'] >= 0.75:
+                    st.success("✅ **ALTA PROBABILIDADE (REPOSIÇÃO)**")
+                else:
+                    st.warning("⚠️ Conferir detalhes visuais antes de cadastrar.")
+            st.divider()
