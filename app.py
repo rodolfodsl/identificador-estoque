@@ -1,12 +1,18 @@
 import streamlit as st
 import pandas as pd
 import requests
+import base64
+import time
 from io import BytesIO
 from PIL import Image
 from sentence_transformers import SentenceTransformer, util
 
 st.set_page_config(page_title="Identificador Visual", layout="centered")
 st.title("👜 Identificador Visual de Estoque")
+
+# --- CREDENCIAIS FIXAS DO BLING ---
+CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
+CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
 @st.cache_resource
 def carregar_modelo():
@@ -17,103 +23,184 @@ modelo = carregar_modelo()
 def baixar_imagem(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        # Se houver vários links no Bling, pega apenas a primeira foto
-        url_limpa = str(url).split('|')[0].split(',')[0].strip()
-        if not url_limpa.startswith("http"):
-            return None
+        url_limpa = str(url).split(',')[0].split('|')[0].strip()
         resp = requests.get(url_limpa, headers=headers, timeout=5)
         return Image.open(BytesIO(resp.content)).convert('RGB')
     except Exception:
         return None
 
-st.info("💡 **Como usar:** Arraste o arquivo CSV exportado do Bling para a caixa abaixo.")
-
-# Aceitando o arquivo CSV
-arquivo_csv = st.file_uploader("Arraste a Planilha Exportada (.csv)", type=['csv'])
-
-if arquivo_csv:
-    # Lê o CSV padrão do Bling (separado por ponto e vírgula)
-    df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
+# --- TELA DE AUTENTICAÇÃO ---
+if 'access_token' not in st.session_state:
+    st.warning("⚠️ Conexão com a API do Bling necessária para puxar as fotos ocultas.")
+    st.markdown("""
+    **Como conectar:**
+    1. Gere um novo link de convite no painel do Bling.
+    2. Autorize o aplicativo.
+    3. Copie o código gerado na barra de endereços (o que vem depois de `code=`).
+    """)
     
-    # Identifica as colunas oficiais dinamicamente
-    col_nome = next((c for c in df.columns if 'nome' in str(c).lower() or 'descrição' in str(c).lower()), None)
-    col_cod = next((c for c in df.columns if 'código' in str(c).lower() or 'sku' in str(c).lower()), None)
-    col_img = next((c for c in df.columns if 'imagem' in str(c).lower() or 'url' in str(c).lower()), None)
+    auth_code_input = st.text_input("Cole o CÓDIGO de autorização aqui:")
     
-    if col_nome and col_img:
-        # Pega apenas as peças que possuem link de foto na planilha
-        df_valido = df.dropna(subset=[col_img]).copy()
-        
-        # Trava de segurança para memória do servidor
-        if len(df_valido) > 500:
-            st.warning(f"Sua planilha possui {len(df_valido)} peças com foto. Para a nuvem não travar, a IA vai aprender apenas as primeiras 500.")
-            df_valido = df_valido.head(500)
-            
-        if len(df_valido) > 0:
-            # Processamento Visual
-            if 'processado' not in st.session_state:
-                st.write("⏳ **Memorizando as fotos das peças... (Isso acontece apenas uma vez)**")
-                barra = st.progress(0)
+    if st.button("🔗 Conectar ao Bling"):
+        if auth_code_input:
+            with st.spinner("Autenticando..."):
+                token_url = "https://api.bling.com.br/Api/v3/oauth/token"
+                credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+                encoded_credentials = base64.b64encode(credentials.encode()).decode()
                 
-                embeddings = []
-                for i, row in df_valido.iterrows():
-                    img = baixar_imagem(row[col_img])
-                    if img:
-                        embeddings.append(modelo.encode(img))
+                headers = {
+                    "Authorization": f"Basic {encoded_credentials}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "1.0"
+                }
+                
+                data = {
+                    "grant_type": "authorization_code",
+                    "code": auth_code_input.strip()
+                }
+                
+                try:
+                    resp_token = requests.post(token_url, headers=headers, data=data)
+                    token_data = resp_token.json()
+                    
+                    if "access_token" in token_data:
+                        st.session_state['access_token'] = token_data["access_token"]
+                        st.success("Conectado com sucesso! Carregando sistema...")
+                        st.rerun()
                     else:
-                        embeddings.append(None)
-                    
-                    # Atualiza a barrinha verde
-                    progresso = int(((i + 1) / len(df_valido)) * 100)
-                    barra.progress(min(progresso, 100))
-                    
-                df_valido['embedding'] = embeddings
-                st.session_state['catalogo'] = df_valido.dropna(subset=['embedding'])
-                st.session_state['processado'] = True
-                st.rerun()
-            
-            else:
-                catalogo = st.session_state['catalogo']
-                st.success(f"✅ {len(catalogo)} peças carregadas na memória e prontas para leitura!")
-                
-                if st.button("Trocar Planilha / Limpar"):
-                    del st.session_state['processado']
-                    st.rerun()
-                
-                st.divider()
-                
-                # Câmera Mágica
-                foto_tirada = st.camera_input("Fotografe a peça para buscar:")
-                if foto_tirada:
-                    img_busca = Image.open(foto_tirada).convert('RGB')
-                    emb_busca = modelo.encode(img_busca)
-                    
-                    scores = []
-                    for emb_prod in catalogo['embedding']:
-                        sim = util.cos_sim(emb_busca, emb_prod).item()
-                        scores.append(sim)
-                        
-                    catalogo['similaridade'] = scores
-                    top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
-                    
-                    st.subheader("Peças Correspondentes:")
-                    for idx, item in top_3.iterrows():
-                        st.markdown(f"### 🏷️ {item[col_nome]}")
-                        col_1, col_2 = st.columns([1, 2])
-                        with col_1:
-                            img_ref = baixar_imagem(item[col_img])
-                            if img_ref:
-                                st.image(img_ref, width=150)
-                        with col_2:
-                            st.write(f"**Código/SKU:** `{item[col_cod] if col_cod else 'Sem código'}`")
-                            st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
-                            
-                            if item['similaridade'] >= 0.75:
-                                st.success("✅ **ALTA PROBABILIDADE**")
-                            else:
-                                st.warning("⚠️ Conferir detalhes visuais.")
-                        st.divider()
+                        st.error(f"Erro ao conectar: {token_data}")
+                except Exception as e:
+                    st.error(f"Erro de comunicação: {e}")
         else:
-            st.error("Nenhuma foto válida encontrada na coluna da planilha.")
-    else:
-        st.error("Não consegui achar as colunas 'Descrição' e 'URL Imagens' na planilha do Bling.")
+            st.error("Por favor, cole o código antes de clicar em Conectar.")
+
+# --- SISTEMA PRINCIPAL (HÍBRIDO: CSV + API) ---
+else:
+    token = st.session_state['access_token']
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.success("✅ Conectado à API do Bling!")
+    with col2:
+        if st.button("Desconectar"):
+            del st.session_state['access_token']
+            st.rerun()
+            
+    st.divider()
+    
+    st.info("💡 **Passo 1:** Envie a sua planilha CSV do Bling para usarmos como Índice.")
+    arquivo_csv = st.file_uploader("Arraste a Planilha Exportada (.csv)", type=['csv'])
+    
+    if arquivo_csv:
+        df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
+        
+        if 'ID' in df.columns and 'Descrição' in df.columns:
+            st.write(f"📊 **Índice Carregado:** {len(df)} produtos listados.")
+            
+            st.markdown("### 🔍 Qual categoria você quer fotografar agora?")
+            termo = st.text_input("Digite uma palavra-chave (Ex: CINTO, BOLSA, COLAR):")
+            
+            if termo:
+                df_filtrado = df[df['Descrição'].str.contains(termo.upper(), na=False)].copy()
+                st.write(f"Encontrados **{len(df_filtrado)}** produtos contendo '{termo.upper()}'.")
+                
+                if len(df_filtrado) > 0:
+                    if st.button(f"Baixar {len(df_filtrado)} Fotos da API e Ligar Câmera"):
+                        st.session_state['catalogo_ativo'] = df_filtrado.to_dict('records')
+                        # Limpa qualquer IA antiga da memória
+                        if 'catalogo_com_ia' in st.session_state:
+                            del st.session_state['catalogo_com_ia']
+                            
+                    # Se o botão foi clicado e ainda não tem a IA calculada
+                    if 'catalogo_ativo' in st.session_state and 'catalogo_com_ia' not in st.session_state:
+                        st.write("⏳ **Baixando as fotos do servidor do Bling...**")
+                        barra = st.progress(0)
+                        texto_progresso = st.empty()
+                        
+                        produtos_finais = []
+                        headers_api = {
+                            "Authorization": f"Bearer {token}",
+                            "Accept": "application/json"
+                        }
+                        
+                        total = len(st.session_state['catalogo_ativo'])
+                        for i, row in enumerate(st.session_state['catalogo_ativo']):
+                            id_prod = row['ID']
+                            nome_prod = row['Descrição']
+                            cod_prod = row.get('Código', 'Sem Código')
+                            
+                            # Puxa a foto via API
+                            link_foto = None
+                            try:
+                                resp = requests.get(f"https://api.bling.com.br/Api/v3/produtos/{id_prod}", headers=headers_api, timeout=5)
+                                if resp.status_code == 200:
+                                    dados = resp.json().get('data', {})
+                                    imagens = dados.get('midia', {}).get('imagens', [])
+                                    if len(imagens) > 0:
+                                        link_foto = imagens[0].get('link') or imagens[0].get('url')
+                            except Exception:
+                                pass
+                                
+                            # Memoriza na IA
+                            emb = None
+                            if link_foto:
+                                img_obj = baixar_imagem(link_foto)
+                                if img_obj:
+                                    emb = modelo.encode(img_obj)
+                                    
+                            if emb is not None:
+                                produtos_finais.append({
+                                    'nome': nome_prod,
+                                    'codigo_barras': cod_prod,
+                                    'link': link_foto,
+                                    'embedding': emb
+                                })
+                                
+                            # Pausa para não ser bloqueado pela segurança do Bling (3 req/seg)
+                            time.sleep(0.35) 
+                            
+                            barra.progress(int(((i + 1) / total) * 100))
+                            texto_progresso.text(f"Processando: {i+1} de {total} (Achadas {len(produtos_finais)} com foto)")
+                            
+                        st.session_state['catalogo_com_ia'] = pd.DataFrame(produtos_finais)
+                        st.rerun()
+                        
+                    # CÂMERA MÁGICA
+                    elif 'catalogo_com_ia' in st.session_state:
+                        catalogo = st.session_state['catalogo_com_ia']
+                        st.success(f"✅ Prontinho! {len(catalogo)} peças com fotos memorizadas.")
+                        
+                        st.divider()
+                        foto_tirada = st.camera_input("📸 Fotografe a peça para buscar:")
+                        
+                        if foto_tirada:
+                            img_busca = Image.open(foto_tirada).convert('RGB')
+                            emb_busca = modelo.encode(img_busca)
+                            
+                            scores = []
+                            for emb_prod in catalogo['embedding']:
+                                sim = util.cos_sim(emb_busca, emb_prod).item()
+                                scores.append(sim)
+                                
+                            catalogo['similaridade'] = scores
+                            top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
+                            
+                            st.subheader("Peças Correspondentes:")
+                            for idx, item in top_3.iterrows():
+                                st.markdown(f"### 🏷️ {item['nome']}")
+                                col_1, col_2 = st.columns([1, 2])
+                                with col_1:
+                                    img_ref = baixar_imagem(item['link'])
+                                    if img_ref:
+                                        st.image(img_ref, width=150)
+                                with col_2:
+                                    st.write(f"**Código/SKU:** `{item['codigo_barras']}`")
+                                    st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
+                                    
+                                    if item['similaridade'] >= 0.75:
+                                        st.success("✅ **ALTA PROBABILIDADE**")
+                                    else:
+                                        st.warning("⚠️ Conferir detalhes visuais.")
+                                st.divider()
+        else:
+            st.error("A planilha não possui as colunas 'ID' e 'Descrição'. Tem certeza que exportou do Bling?")
