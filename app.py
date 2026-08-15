@@ -87,7 +87,7 @@ def carregar_catalogo(url_planilha):
     return df_final.dropna(subset=['embedding'])
 
 # URL do seu Bloco de Notas com a chave de compartilhamento pública
-URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/IQQ5iErTMZvpIICrcQUAAAAAAeLF1Ps8OsfmWITa4LOxl04?em=2&wdAllowInteractivity=False&wdHideGridlines=True&wdHideHeaders=True&wdDownloadButton=True&wdInConfigurator=True&wdInConfigurator=True"
+URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/IQQ5iErTMZvpIICrcQUAAAAAAeLF1Ps8OsfmWITa4LOxl04?download=1"
 
 with st.spinner("Lendo planilha e indexando fotos do estoque..."):
     catalogo = carregar_catalogo(URL_ONEDRIVE)
