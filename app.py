@@ -119,9 +119,9 @@ def carregar_dados(url_planilha, api_key_bling):
     return df_final.dropna(subset=['embedding'])
 
 # ==========================================
-# COLE SEUS LINKS E CHAVES AQUI EMBAIXO
+# LINKS E CHAVES DE INTEGRAÇÃO
 # ==========================================
-URL_PLANILHA = "" # Se for usar o Google Sheets depois, cole o link aqui
+URL_PLANILHA = "" # Quando fizer sua planilha do Google Planilhas, cole o link exportável aqui dentro das aspas!
 API_KEY_BLING = "cd96a6839920db48210337e3a59a568e0409a1d0dd8d857f7a2e57b624996c87c2f7888e"
 # ==========================================
 
@@ -168,4 +168,4 @@ if len(catalogo) > 0:
                     st.warning("⚠️ Conferir detalhes visuais.")
             st.divider()
 else:
-    st.warning("Aguardando leitura de produtos... Verifique sua chave do Bling.")
+    st.warning("Aguardando leitura de produtos... Verifique sua chave do Bling e os links das planilhas.")
