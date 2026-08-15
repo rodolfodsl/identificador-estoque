@@ -32,9 +32,12 @@ def baixar_imagem(url):
 
 @st.cache_data(ttl=600)
 def carregar_produtos_bling_v3():
+    # Insira aqui o novo Client ID e Client Secret gerados ao recriar o app:
     CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e".strip()
     CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
-    AUTHORIZATION_CODE = "23e5f6b2b1c1e8cb3b651195eb3a4bcff6ea4809".strip()
+    
+    # Novo código de autorização:
+    AUTHORIZATION_CODE = "ae9d2d0016f22207a50ac6d7cfecb4960649c3d6".strip()
     
     token_url = "https://www.bling.com.br/Api/v3/oauth/token"
     credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
