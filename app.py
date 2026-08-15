@@ -100,88 +100,94 @@ else:
                 dados = resp_prod.json()
                 if "data" in dados and len(dados["data"]) > 0:
                     for prod in dados["data"]:
-                        nome = prod.get("nome", "")
+                        nome = prod.get("nome", "Produto sem nome")
                         codigo = prod.get("codigo", "Sem Código")
                         
                         link_img = None
                         if "midia" in prod and "imagens" in prod["midia"] and len(prod["midia"]["imagens"]) > 0:
                             link_img = prod["midia"]["imagens"][0].get("link")
                             
-                        if nome and link_img:
-                            todos_produtos.append({
-                                'nome': nome,
-                                'codigo_barras': codigo,
-                                'link': link_img,
-                                'categoria': 'ERP Bling v3'
-                            })
+                        todos_produtos.append({
+                            'nome': nome,
+                            'codigo_barras': codigo,
+                            'link': link_img,
+                            'categoria': 'ERP Bling v3'
+                        })
                     pagina += 1
                 else:
                     break
             except Exception:
                 break
 
-        df_final = pd.DataFrame(todos_produtos)
-        if len(df_final) == 0:
-            return df_final
-
-        embeddings = []
-        for _, row in df_final.iterrows():
-            img = baixar_imagem(row['link'])
-            if img:
-                emb = modelo.encode(img)
-                embeddings.append(emb)
-            else:
-                embeddings.append(None)
-                
-        df_final['embedding'] = embeddings
-        return df_final.dropna(subset=['embedding'])
+        return pd.DataFrame(todos_produtos)
 
     with st.spinner("Baixando catálogo oficial do Bling..."):
         catalogo = carregar_produtos_bling_v3(st.session_state['access_token'])
 
     if len(catalogo) > 0:
-        st.success(f"✅ Catálogo baixado! {len(catalogo)} produtos prontos para identificação.")
+        produtos_com_foto = catalogo.dropna(subset=['link'])
+        
+        st.success(f"✅ Conexão Perfeita! Encontramos {len(catalogo)} produtos no seu Bling.")
+        st.info(f"📸 Desses produtos, {len(produtos_com_foto)} possuem imagens cadastradas na API.")
+        
+        st.write("**Amostra dos 5 primeiros produtos encontrados:**")
+        st.dataframe(catalogo[['codigo_barras', 'nome', 'link']].head(5))
         
         if st.button("Sair / Desconectar"):
             del st.session_state['access_token']
             st.rerun()
 
-        st.divider()
-        foto_tirada = st.camera_input("Fotografe a peça para buscar:")
-        
-        if foto_tirada:
-            img_busca = Image.open(foto_tirada).convert('RGB')
-            emb_busca = modelo.encode(img_busca)
+        if len(produtos_com_foto) > 0:
+            st.divider()
+            foto_tirada = st.camera_input("Fotografe a peça para buscar:")
             
-            scores = []
-            for emb_prod in catalogo['embedding']:
-                sim = util.cos_sim(emb_busca, emb_prod).item()
-                scores.append(sim)
-                
-            catalogo['similaridade'] = scores
-            top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
-            
-            st.subheader("Itens Mais Prováveis Encontrados:")
-            for idx, item in top_3.iterrows():
-                st.markdown(f"### 🏷️ {item['nome']}")
-                col_img, col_dados = st.columns([1, 2])
-                
-                with col_img:
-                    img_ref = baixar_imagem(item['link'])
-                    if img_ref:
-                        st.image(img_ref, width=150, caption="Foto do Sistema")
-                        
-                with col_dados:
-                    st.write(f"**Código / SKU:** `{item['codigo_barras']}`")
-                    st.write(f"**Precisão:** {item['similaridade']:.1%}")
-                    
-                    if item['similaridade'] >= 0.75:
-                        st.success("✅ **ALTA PROBABILIDADE**")
+            if foto_tirada:
+                # Gerar embeddings apenas para produtos com foto
+                embeddings = []
+                for _, row in produtos_com_foto.iterrows():
+                    img = baixar_imagem(row['link'])
+                    if img:
+                        embeddings.append(modelo.encode(img))
                     else:
-                        st.warning("⚠️ Conferir detalhes visuais.")
-                st.divider()
+                        embeddings.append(None)
+                
+                produtos_com_foto['embedding'] = embeddings
+                produtos_com_foto = produtos_com_foto.dropna(subset=['embedding'])
+                
+                img_busca = Image.open(foto_tirada).convert('RGB')
+                emb_busca = modelo.encode(img_busca)
+                
+                scores = []
+                for emb_prod in produtos_com_foto['embedding']:
+                    sim = util.cos_sim(emb_busca, emb_prod).item()
+                    scores.append(sim)
+                    
+                produtos_com_foto['similaridade'] = scores
+                top_3 = produtos_com_foto.sort_values(by='similaridade', ascending=False).head(3)
+                
+                st.subheader("Itens Mais Prováveis Encontrados:")
+                for idx, item in top_3.iterrows():
+                    st.markdown(f"### 🏷️ {item['nome']}")
+                    col_img, col_dados = st.columns([1, 2])
+                    
+                    with col_img:
+                        img_ref = baixar_imagem(item['link'])
+                        if img_ref:
+                            st.image(img_ref, width=150, caption="Foto do Sistema")
+                            
+                    with col_dados:
+                        st.write(f"**Código / SKU:** `{item['codigo_barras']}`")
+                        st.write(f"**Precisão:** {item['similaridade']:.1%}")
+                        
+                        if item['similaridade'] >= 0.75:
+                            st.success("✅ **ALTA PROBABILIDADE**")
+                        else:
+                            st.warning("⚠️ Conferir detalhes visuais.")
+                    st.divider()
+        else:
+            st.warning("Para usar a identificação visual, você precisa adicionar fotos aos produtos lá no painel do Bling.")
     else:
-        st.warning("O token foi gerado, mas nenhum produto com imagem foi encontrado. Verifique seu painel do Bling.")
+        st.warning("O token foi gerado, mas sua lista de produtos no Bling parece estar vazia.")
         if st.button("Tentar Novamente / Desconectar"):
             del st.session_state['access_token']
             st.rerun()
