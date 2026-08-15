@@ -11,8 +11,8 @@ st.set_page_config(page_title="Identificador de Estoque", layout="centered")
 st.title("👜 Identificador Visual de Estoque (Bling v3)")
 
 # --- CREDENCIAIS FIXAS ---
-CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e".strip()
-CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
+CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
+CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
 @st.cache_resource
 def carregar_modelo():
