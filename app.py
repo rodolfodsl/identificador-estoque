@@ -30,14 +30,26 @@ def baixar_imagem(url):
     except Exception:
         return None
 
-# 2. Carregar produtos da planilha online
+# 2. Carregar produtos da planilha com "Disfarce de Navegador"
 @st.cache_data(ttl=1800)
 def carregar_catalogo(url_planilha):
     todos_produtos = []
     
     try:
-        # Lê todas as abas diretamente da URL (o pandas resolve o download e redirecionamentos sozinho)
-        abas_dict = pd.read_excel(url_planilha, sheet_name=None)
+        # Disfarce para o OneDrive achar que somos o Google Chrome baixando o arquivo
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+        }
+        
+        resposta = requests.get(url_planilha, headers=headers, allow_redirects=True)
+        
+        # Verifica se o bloqueio persistiu
+        if b"<html" in resposta.content[:20].lower():
+            st.error("O OneDrive retornou uma página bloqueada em vez do arquivo.")
+            return pd.DataFrame()
+            
+        arquivo_excel = BytesIO(resposta.content)
+        abas_dict = pd.read_excel(arquivo_excel, sheet_name=None)
         
         for nome_aba, df in abas_dict.items():
             if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
@@ -66,11 +78,10 @@ def carregar_catalogo(url_planilha):
                 except Exception:
                     continue
     except Exception as e:
-        st.error("Erro ao acessar a planilha. Verifique as permissões do link.")
+        st.error(f"Erro técnico ao baixar ou ler a planilha: {e}")
         return pd.DataFrame()
 
     df_final = pd.DataFrame(todos_produtos)
-    
     if len(df_final) == 0:
         return df_final
 
@@ -86,7 +97,6 @@ def carregar_catalogo(url_planilha):
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
-# URL do seu Bloco de Notas com a chave de compartilhamento pública
 URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/IQQ5iErTMZvpIICrcQUAAAAAAeLF1Ps8OsfmWITa4LOxl04?download=1"
 
 with st.spinner("Lendo planilha e indexando fotos do estoque..."):
@@ -95,9 +105,8 @@ with st.spinner("Lendo planilha e indexando fotos do estoque..."):
 if len(catalogo) > 0:
     st.success(f"{len(catalogo)} produtos cadastrados e sincronizados com sucesso!")
 else:
-    st.warning("Aguardando carregamento da base ou nenhum produto encontrado nas abas.")
+    st.warning("Nenhum produto encontrado. Tente novamente.")
 
-# 3. Câmera
 st.write("---")
 foto_tirada = st.camera_input("Fotografe a peça para identificar:")
 
