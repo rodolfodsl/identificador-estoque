@@ -32,11 +32,10 @@ def baixar_imagem(url):
 
 @st.cache_data(ttl=600)
 def carregar_produtos_bling_v3():
-    CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e"
-    CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b"
-    AUTHORIZATION_CODE = "23e5f6b2b1c1e8cb3b651195eb3a4bcff6ea4809"
+    CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e".strip()
+    CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
+    AUTHORIZATION_CODE = "23e5f6b2b1c1e8cb3b651195eb3a4bcff6ea4809".strip()
     
-    # 1. Trocar o código pelo Token de Acesso
     token_url = "https://www.bling.com.br/Api/v3/oauth/token"
     credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
@@ -64,7 +63,6 @@ def carregar_produtos_bling_v3():
         st.error(f"Erro na requisição de token: {e}")
         return pd.DataFrame()
 
-    # 2. Buscar os produtos paginados na API v3
     todos_produtos = []
     pagina = 1
     
@@ -86,7 +84,6 @@ def carregar_produtos_bling_v3():
                     nome = prod.get("nome", "")
                     codigo = prod.get("codigo", "Sem Código")
                     
-                    # Buscar imagens associadas na v3
                     link_img = None
                     if "midia" in prod and "imagens" in prod["midia"] and len(prod["midia"]["imagens"]) > 0:
                         link_img = prod["midia"]["imagens"][0].get("link")
@@ -108,7 +105,6 @@ def carregar_produtos_bling_v3():
     if len(df_final) == 0:
         return df_final
 
-    # 3. Gerar Inteligência Visual (Embeddings)
     embeddings = []
     for _, row in df_final.iterrows():
         img = baixar_imagem(row['link'])
