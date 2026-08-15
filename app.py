@@ -19,19 +19,23 @@ def baixar_imagem(url):
         headers = {'User-Agent': 'Mozilla/5.0'}
         # Se houver vários links no Bling, pega apenas a primeira foto
         url_limpa = str(url).split('|')[0].split(',')[0].strip()
+        if not url_limpa.startswith("http"):
+            return None
         resp = requests.get(url_limpa, headers=headers, timeout=5)
         return Image.open(BytesIO(resp.content)).convert('RGB')
     except Exception:
         return None
 
-st.info("💡 **Como usar:** Exporte seus produtos no Bling (Mais ações > Exportar dados para planilha). Para a IA responder rápido, sugerimos planilhas de até 500 produtos por vez.")
+st.info("💡 **Como usar:** Arraste o arquivo CSV exportado do Bling para a caixa abaixo.")
 
-arquivo_excel = st.file_uploader("Arraste a Planilha Exportada do Bling aqui (.xlsx)", type=['xlsx'])
+# Aceitando o arquivo CSV
+arquivo_csv = st.file_uploader("Arraste a Planilha Exportada (.csv)", type=['csv'])
 
-if arquivo_excel:
-    df = pd.read_excel(arquivo_excel, engine='openpyxl')
+if arquivo_csv:
+    # Lê o CSV padrão do Bling (separado por ponto e vírgula)
+    df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
     
-    # Identifica as colunas oficiais do Bling dinamicamente
+    # Identifica as colunas oficiais dinamicamente
     col_nome = next((c for c in df.columns if 'nome' in str(c).lower() or 'descrição' in str(c).lower()), None)
     col_cod = next((c for c in df.columns if 'código' in str(c).lower() or 'sku' in str(c).lower()), None)
     col_img = next((c for c in df.columns if 'imagem' in str(c).lower() or 'url' in str(c).lower()), None)
