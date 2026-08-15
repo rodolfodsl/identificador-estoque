@@ -1,13 +1,14 @@
 import streamlit as st
 import pandas as pd
 import requests
+import base64
 from io import BytesIO
 from PIL import Image
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer, util
 
 st.set_page_config(page_title="Identificador de Estoque", layout="centered")
-st.title("👜 Identificador Visual de Estoque")
+st.title("👜 Identificador Visual de Estoque (Bling v3)")
 
 @st.cache_resource
 def carregar_modelo():
@@ -29,45 +30,79 @@ def baixar_imagem(url):
     except Exception:
         return None
 
-@st.cache_data(ttl=1800)
-def carregar_catalogo(url_planilha):
-    todos_produtos = []
+@st.cache_data(ttl=600)
+def carregar_produtos_bling_v3():
+    # Insira aqui o novo Client ID e Client Secret gerados ao recriar o app:
+    CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e".strip()
+    CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
+    
+    # Novo código de autorização:
+    AUTHORIZATION_CODE = "ae9d2d0016f22207a50ac6d7cfecb4960649c3d6".strip()
+    
+    token_url = "https://www.bling.com.br/Api/v3/oauth/token"
+    credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    encoded_credentials = base64.b64encode(credentials.encode()).decode()
+    
+    headers = {
+        "Authorization": f"Basic {encoded_credentials}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    data = {
+        "grant_type": "authorization_code",
+        "code": AUTHORIZATION_CODE
+    }
+    
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        resposta = requests.get(url_planilha, headers=headers, allow_redirects=True)
-        arquivo_excel = BytesIO(resposta.content)
+        resp_token = requests.post(token_url, headers=headers, data=data)
+        token_data = resp_token.json()
         
-        abas_dict = pd.read_excel(arquivo_excel, engine='openpyxl', sheet_name=None)
-        
-        for nome_aba, df in abas_dict.items():
-            if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
-                try:
-                    col_prod = [c for c in df.columns if 'PRODUTO' in str(c).upper()]
-                    col_cod = [c for c in df.columns if 'BARRA' in str(c).upper() or 'ETIQUE' in str(c).upper()]
-                    col_link = [c for c in df.columns if 'LINK' in str(c).upper() or 'FOTO' in str(c).upper()]
-                    
-                    if col_prod and col_link:
-                        c_p = col_prod[0]
-                        c_l = col_link[0]
-                        c_c = col_cod[0] if col_cod else None
-                        
-                        for idx, row in df.iterrows():
-                            link_val = str(row[c_l]).strip()
-                            prod_val = str(row[c_p]).strip()
-                            cod_val = str(row[c_c]).replace('.0', '').strip() if c_c else "Sem Código"
-                            
-                            if link_val.startswith("http") and prod_val and prod_val.lower() != 'nan':
-                                todos_produtos.append({
-                                    'nome': prod_val,
-                                    'codigo_barras': cod_val,
-                                    'link': link_val,
-                                    'categoria': nome_aba
-                                })
-                except Exception:
-                    continue
+        if "access_token" not in token_data:
+            st.error(f"Erro ao obter token do Bling: {token_data}")
+            return pd.DataFrame()
+            
+        access_token = token_data["access_token"]
     except Exception as e:
-        st.error(f"Erro ao ler a planilha: {e}")
+        st.error(f"Erro na requisição de token: {e}")
         return pd.DataFrame()
+
+    todos_produtos = []
+    pagina = 1
+    
+    headers_api = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    }
+    
+    while True:
+        url_produtos = f"https://www.bling.com.br/Api/v3/produtos?pagina={pagina}&limite=100"
+        try:
+            resp_prod = requests.get(url_produtos, headers=headers_api, timeout=10)
+            if resp_prod.status_code != 200:
+                break
+                
+            dados = resp_prod.json()
+            if "data" in dados and len(dados["data"]) > 0:
+                for prod in dados["data"]:
+                    nome = prod.get("nome", "")
+                    codigo = prod.get("codigo", "Sem Código")
+                    
+                    link_img = None
+                    if "midia" in prod and "imagens" in prod["midia"] and len(prod["midia"]["imagens"]) > 0:
+                        link_img = prod["midia"]["imagens"][0].get("link")
+                        
+                    if nome and link_img:
+                        todos_produtos.append({
+                            'nome': nome,
+                            'codigo_barras': codigo,
+                            'link': link_img,
+                            'categoria': 'ERP Bling v3'
+                        })
+                pagina += 1
+            else:
+                break
+        except Exception:
+            break
 
     df_final = pd.DataFrame(todos_produtos)
     if len(df_final) == 0:
@@ -85,14 +120,11 @@ def carregar_catalogo(url_planilha):
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
-# Cole aqui o link de download direto da sua planilha do estoque
-URL_PLANILHA = "COLE_O_LINK_DA_PLANILHA_AQUI"
-
-with st.spinner("Sincronizando catálogo e indexando fotos..."):
-    catalogo = carregar_catalogo(URL_PLANILHA)
+with st.spinner("Sincronizando produtos e imagens do Bling v3..."):
+    catalogo = carregar_produtos_bling_v3()
 
 if len(catalogo) > 0:
-    st.success(f"✅ Sincronizado com sucesso! {len(catalogo)} produtos na memória.")
+    st.success(f"✅ Sincronizado com sucesso! {len(catalogo)} produtos carregados do Bling v3.")
     
     st.write("---")
     foto_tirada = st.camera_input("Fotografe a peça para identificar:")
@@ -118,12 +150,12 @@ if len(catalogo) > 0:
             with col_img:
                 img_ref = baixar_imagem(item['link'])
                 if img_ref:
-                    st.image(img_ref, width=150, caption="Foto da Referência")
+                    st.image(img_ref, width=150, caption="Foto do Bling")
                     
             with col_dados:
-                st.write(f"**Código de Barras:** `{item['codigo_barras']}`")
-                st.write(f"**Categoria:** {item['categoria']}")
-                st.write(f"**Similaridade:** {item['similaridade']:.1%}")
+                st.write(f"**Código / SKU:** `{item['codigo_barras']}`")
+                st.write(f"**Fonte:** {item['categoria']}")
+                st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
                 
                 if item['similaridade'] >= 0.75:
                     st.success("✅ **ALTA PROBABILIDADE**")
@@ -131,4 +163,4 @@ if len(catalogo) > 0:
                     st.warning("⚠️ Conferir detalhes visuais.")
             st.divider()
 else:
-    st.warning("Insira o link da sua planilha na linha 78 do código para carregar o sistema.")
+    st.warning("Nenhum produto com imagem foi retornado pela API v3. Verifique se os produtos cadastrados no Bling possuem fotos anexadas.")
