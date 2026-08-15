@@ -9,7 +9,6 @@ from sentence_transformers import SentenceTransformer, util
 st.set_page_config(page_title="Identificador de Estoque", layout="centered")
 st.title("👜 Identificador Visual de Estoque")
 
-# 1. Carregar modelo visual de IA
 @st.cache_resource
 def carregar_modelo():
     return SentenceTransformer('clip-ViT-B-32')
@@ -30,16 +29,16 @@ def baixar_imagem(url):
     except Exception:
         return None
 
-# 2. Carregar produtos da base (Motor de Leitura)
-@st.cache_data(ttl=1800)
-def carregar_catalogo(fonte_dados):
+@st.cache_data(ttl=600)
+def carregar_dados(url_planilha, api_key_bling):
     todos_produtos = []
-    try:
-        abas_dict = pd.read_excel(fonte_dados, engine='openpyxl', sheet_name=None)
-        
-        for nome_aba, df in abas_dict.items():
-            if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
-                try:
+    
+    # 1. Carregar do Google Planilhas (Se houver link)
+    if url_planilha:
+        try:
+            abas_dict = pd.read_excel(url_planilha, engine='openpyxl', sheet_name=None)
+            for nome_aba, df in abas_dict.items():
+                if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
                     col_prod = [c for c in df.columns if 'PRODUTO' in str(c).upper()]
                     col_cod = [c for c in df.columns if 'BARRA' in str(c).upper() or 'ETIQUE' in str(c).upper()]
                     col_link = [c for c in df.columns if 'LINK' in str(c).upper() or 'FOTO' in str(c).upper()]
@@ -59,17 +58,54 @@ def carregar_catalogo(fonte_dados):
                                     'nome': prod_val,
                                     'codigo_barras': cod_val,
                                     'link': link_val,
-                                    'categoria': nome_aba
+                                    'categoria': f"Planilha: {nome_aba}"
                                 })
-                except Exception:
-                    continue
-    except Exception as e:
-        return pd.DataFrame()
+        except Exception:
+            pass
+
+    # 2. Carregar do ERP Bling (Se houver chave)
+    if api_key_bling:
+        pagina = 1
+        while True:
+            # Puxa 100 produtos por página com a imagem habilitada
+            url = f"https://bling.com.br/Api/v2/produtos/page={pagina}/json/?apikey={api_key_bling}&imagem=S"
+            try:
+                resp = requests.get(url, timeout=10)
+                if resp.status_code != 200:
+                    break
+                
+                dados = resp.json()
+                if 'retorno' in dados and 'produtos' in dados['retorno']:
+                    for item in dados['retorno']['produtos']:
+                        p = item['produto']
+                        nome = p.get('descricao', '')
+                        codigo = p.get('codigo', 'Sem Código')
+                        
+                        link_img = None
+                        if 'imagem' in p and len(p['imagem']) > 0:
+                            link_img = p['imagem'][0].get('link')
+                            
+                        if nome and link_img:
+                            todos_produtos.append({
+                                'nome': nome,
+                                'codigo_barras': codigo,
+                                'link': link_img,
+                                'categoria': 'ERP Bling'
+                            })
+                    pagina += 1
+                else:
+                    break
+            except Exception:
+                break
 
     df_final = pd.DataFrame(todos_produtos)
     if len(df_final) == 0:
         return df_final
 
+    # Remove produtos duplicados (caso você tenha o mesmo item na planilha e no Bling)
+    df_final = df_final.drop_duplicates(subset=['nome'])
+
+    # 3. Gerar Inteligência Visual
     embeddings = []
     for _, row in df_final.iterrows():
         img = baixar_imagem(row['link'])
@@ -82,36 +118,18 @@ def carregar_catalogo(fonte_dados):
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
-# URL do OneDrive
-URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/IQQ5iErTMZvpIICrcQUAAAAAAeLF1Ps8OsfmWITa4LOxl04?download=1"
+# ==========================================
+# COLE SEUS LINKS E CHAVES AQUI EMBAIXO
+# ==========================================
+URL_PLANILHA = "" # Se for usar o Google Sheets depois, cole o link aqui
+API_KEY_BLING = "cd96a6839920db48210337e3a59a568e0409a1d0dd8d857f7a2e57b624996c87c2f7888e"
+# ==========================================
 
-catalogo = pd.DataFrame()
-st.write("### 📂 Sincronização de Banco de Dados")
+with st.spinner("Sincronizando banco de dados do Bling e da Planilha... Isso pode levar um minuto na primeira vez..."):
+    catalogo = carregar_dados(URL_PLANILHA, API_KEY_BLING)
 
-# Tenta baixar do OneDrive primeiro
-try:
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    resposta = requests.get(URL_ONEDRIVE, headers=headers, timeout=10, allow_redirects=True)
-    
-    # Se o OneDrive não enviar HTML de erro, processa a planilha
-    if b"<html" not in resposta.content[:20].lower():
-        with st.spinner("Conectando ao OneDrive e indexando fotos..."):
-            catalogo = carregar_catalogo(BytesIO(resposta.content))
-except:
-    pass
-
-# Se falhar ou for bloqueado, mostra o "Plano B" (Upload Manual)
-if len(catalogo) == 0:
-    st.warning("⚠️ O OneDrive bloqueou a sincronização automática. Faça o upload manual da sua planilha abaixo:")
-    arquivo_up = st.file_uploader("Selecione sua planilha (.xlsx)", type=["xlsx"])
-    
-    if arquivo_up:
-        with st.spinner("Lendo arquivo e processando imagens do estoque... Isso pode levar um minuto..."):
-            catalogo = carregar_catalogo(arquivo_up)
-
-# Se conseguiu carregar produtos (seja via Link ou Upload), libera a Câmera
 if len(catalogo) > 0:
-    st.success(f"✅ Sucesso! {len(catalogo)} produtos cadastrados na memória.")
+    st.success(f"✅ Automação 100% ativa! {len(catalogo)} produtos identificados no estoque.")
     
     st.write("---")
     foto_tirada = st.camera_input("Fotografe a peça para identificar:")
@@ -137,15 +155,17 @@ if len(catalogo) > 0:
             with col_img:
                 img_ref = baixar_imagem(item['link'])
                 if img_ref:
-                    st.image(img_ref, width=150, caption="Foto da Planilha")
+                    st.image(img_ref, width=150, caption="Foto do Cadastro")
                     
             with col_dados:
-                st.write(f"**Código de Barras:** `{item['codigo_barras']}`")
-                st.write(f"**Aba / Categoria:** {item['categoria']}")
-                st.write(f"**Similaridade:** {item['similaridade']:.1%}")
+                st.write(f"**Código:** `{item['codigo_barras']}`")
+                st.write(f"**Fonte:** {item['categoria']}")
+                st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
                 
                 if item['similaridade'] >= 0.75:
-                    st.success("✅ **ALTA PROBABILIDADE (REPOSIÇÃO)**")
+                    st.success("✅ **ALTA PROBABILIDADE**")
                 else:
-                    st.warning("⚠️ Conferir detalhes visuais antes de cadastrar.")
+                    st.warning("⚠️ Conferir detalhes visuais.")
             st.divider()
+else:
+    st.warning("Aguardando leitura de produtos... Verifique sua chave do Bling.")
