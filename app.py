@@ -35,51 +35,45 @@ def baixar_imagem(url):
 def carregar_catalogo(url_planilha):
     todos_produtos = []
     
-    # Baixar a planilha para memória
-    resp = requests.get(url_planilha)
-    excel_file = BytesIO(resp.content)
-    
-    # Lê todas as abas disponíveis
-    xls = pd.ExcelFile(excel_file)
-    
-    for nome_aba in xls.sheet_names:
-        # Foca nas abas de produtos e categorias
-        if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
-            try:
-                df = pd.read_excel(excel_file, sheet_name=nome_aba)
-                
-                # Procura as colunas certas independente da linha do cabeçalho
-                col_prod = [c for c in df.columns if 'PRODUTO' in str(c).upper()]
-                col_cod = [c for c in df.columns if 'BARRA' in str(c).upper() or 'ETIQUE' in str(c).upper()]
-                col_link = [c for c in df.columns if 'LINK' in str(c).upper() or 'FOTO' in str(c).upper()]
-                
-                if col_prod and col_link:
-                    c_p = col_prod[0]
-                    c_l = col_link[0]
-                    c_c = col_cod[0] if col_cod else None
+    try:
+        # Lê todas as abas diretamente da URL (o pandas resolve o download e redirecionamentos sozinho)
+        abas_dict = pd.read_excel(url_planilha, sheet_name=None)
+        
+        for nome_aba, df in abas_dict.items():
+            if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
+                try:
+                    col_prod = [c for c in df.columns if 'PRODUTO' in str(c).upper()]
+                    col_cod = [c for c in df.columns if 'BARRA' in str(c).upper() or 'ETIQUE' in str(c).upper()]
+                    col_link = [c for c in df.columns if 'LINK' in str(c).upper() or 'FOTO' in str(c).upper()]
                     
-                    df_validos = df[[c_p, c_l]].dropna()
-                    for idx, row in df.iterrows():
-                        link_val = str(row[c_l]).strip()
-                        prod_val = str(row[c_p]).strip()
-                        cod_val = str(row[c_c]).replace('.0', '').strip() if c_c else "Sem Código"
+                    if col_prod and col_link:
+                        c_p = col_prod[0]
+                        c_l = col_link[0]
+                        c_c = col_cod[0] if col_cod else None
                         
-                        if link_val.startswith("http") and prod_val and prod_val.lower() != 'nan':
-                            todos_produtos.append({
-                                'nome': prod_val,
-                                'codigo_barras': cod_val,
-                                'link': link_val,
-                                'categoria': nome_aba
-                            })
-            except Exception:
-                continue
+                        for idx, row in df.iterrows():
+                            link_val = str(row[c_l]).strip()
+                            prod_val = str(row[c_p]).strip()
+                            cod_val = str(row[c_c]).replace('.0', '').strip() if c_c else "Sem Código"
+                            
+                            if link_val.startswith("http") and prod_val and prod_val.lower() != 'nan':
+                                todos_produtos.append({
+                                    'nome': prod_val,
+                                    'codigo_barras': cod_val,
+                                    'link': link_val,
+                                    'categoria': nome_aba
+                                })
+                except Exception:
+                    continue
+    except Exception as e:
+        st.error("Erro ao acessar a planilha. Verifique as permissões do link.")
+        return pd.DataFrame()
 
     df_final = pd.DataFrame(todos_produtos)
     
     if len(df_final) == 0:
         return df_final
 
-    # Gerar os embeddings das imagens
     embeddings = []
     for _, row in df_final.iterrows():
         img = baixar_imagem(row['link'])
@@ -92,19 +86,22 @@ def carregar_catalogo(url_planilha):
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
-# URL Direta da Planilha
-URL_ONEDRIVE = "https://onedrive.live.com/download?cid=abe99b31d34a8839&resid=d34a8839-9b31-20e9-80ab-710500000000"
+# URL do seu Bloco de Notas com a chave de compartilhamento pública
+URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/UQA5iErTMZvpIICrcQUAAAAAABvXjqK3EYeqBtE?download=1"
 
 with st.spinner("Lendo planilha e indexando fotos do estoque..."):
     catalogo = carregar_catalogo(URL_ONEDRIVE)
 
-st.success(f"{len(catalogo)} produtos cadastrados e sincronizados com sucesso!")
+if len(catalogo) > 0:
+    st.success(f"{len(catalogo)} produtos cadastrados e sincronizados com sucesso!")
+else:
+    st.warning("Aguardando carregamento da base ou nenhum produto encontrado nas abas.")
 
 # 3. Câmera
 st.write("---")
 foto_tirada = st.camera_input("Fotografe a peça para identificar:")
 
-if foto_tirada:
+if foto_tirada and len(catalogo) > 0:
     img_busca = Image.open(foto_tirada).convert('RGB')
     emb_busca = modelo.encode(img_busca)
     
