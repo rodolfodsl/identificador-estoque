@@ -32,20 +32,20 @@ def baixar_imagem(url):
 
 @st.cache_data(ttl=600)
 def carregar_produtos_bling_v3():
-    # Insira aqui o novo Client ID e Client Secret gerados ao recriar o app:
-    CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e".strip()
-    CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
+    # 1. Suas Credenciais
+    CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
+    CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
+    AUTHORIZATION_CODE = "eeef59bc8874c8a186f9bfdb0e07127ecdfcda77".strip()
     
-    # Novo código de autorização:
-    AUTHORIZATION_CODE = "153f4fe1a93ef47521e04ab8fbd78d856310c969".strip()
-    
-    token_url = "https://www.bling.com.br/Api/v3/oauth/token"
+    # 2. Requisição do Token Corrigida (api.bling.com.br)
+    token_url = "https://api.bling.com.br/Api/v3/oauth/token"
     credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
     
     headers = {
         "Authorization": f"Basic {encoded_credentials}",
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "1.0"
     }
     
     data = {
@@ -58,24 +58,24 @@ def carregar_produtos_bling_v3():
         token_data = resp_token.json()
         
         if "access_token" not in token_data:
-            st.error(f"Erro ao obter token do Bling: {token_data}")
+            st.error(f"Erro ao obter token: {token_data}")
             return pd.DataFrame()
             
         access_token = token_data["access_token"]
     except Exception as e:
-        st.error(f"Erro na requisição de token: {e}")
+        st.error(f"Erro de conexão: {e}")
         return pd.DataFrame()
 
+    # 3. Busca de Produtos Corrigida (api.bling.com.br)
     todos_produtos = []
     pagina = 1
-    
     headers_api = {
         "Authorization": f"Bearer {access_token}",
         "Accept": "application/json"
     }
     
     while True:
-        url_produtos = f"https://www.bling.com.br/Api/v3/produtos?pagina={pagina}&limite=100"
+        url_produtos = f"https://api.bling.com.br/Api/v3/produtos?pagina={pagina}&limite=100"
         try:
             resp_prod = requests.get(url_produtos, headers=headers_api, timeout=10)
             if resp_prod.status_code != 200:
@@ -120,15 +120,13 @@ def carregar_produtos_bling_v3():
     df_final['embedding'] = embeddings
     return df_final.dropna(subset=['embedding'])
 
-with st.spinner("Sincronizando produtos e imagens do Bling v3..."):
+with st.spinner("Conectando à API Oficial do Bling..."):
     catalogo = carregar_produtos_bling_v3()
 
 if len(catalogo) > 0:
-    st.success(f"✅ Sincronizado com sucesso! {len(catalogo)} produtos carregados do Bling v3.")
+    st.success(f"✅ Catálogo baixado! {len(catalogo)} produtos prontos.")
     
-    st.write("---")
-    foto_tirada = st.camera_input("Fotografe a peça para identificar:")
-
+    foto_tirada = st.camera_input("Fotografe a peça:")
     if foto_tirada:
         img_busca = Image.open(foto_tirada).convert('RGB')
         emb_busca = modelo.encode(img_busca)
@@ -141,26 +139,7 @@ if len(catalogo) > 0:
         catalogo['similaridade'] = scores
         top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
         
-        st.subheader("Itens Mais Prováveis Encontrados:")
-        
         for idx, item in top_3.iterrows():
-            st.markdown(f"### 🏷️ {item['nome']}")
-            col_img, col_dados = st.columns([1, 2])
-            
-            with col_img:
-                img_ref = baixar_imagem(item['link'])
-                if img_ref:
-                    st.image(img_ref, width=150, caption="Foto do Bling")
-                    
-            with col_dados:
-                st.write(f"**Código / SKU:** `{item['codigo_barras']}`")
-                st.write(f"**Fonte:** {item['categoria']}")
-                st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
-                
-                if item['similaridade'] >= 0.75:
-                    st.success("✅ **ALTA PROBABILIDADE**")
-                else:
-                    st.warning("⚠️ Conferir detalhes visuais.")
-            st.divider()
+            st.markdown(f"### 🏷️ {item['nome']} (`{item['codigo_barras']}`)")
 else:
-    st.warning("Nenhum produto com imagem foi retornado pela API v3. Verifique se os produtos cadastrados no Bling possuem fotos anexadas.")
+    st.warning("Gere um novo código no Bling e atualize o script em menos de 1 minuto.")
