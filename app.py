@@ -37,7 +37,7 @@ def carregar_produtos_bling_v3():
     CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b".strip()
     
     # Novo código de autorização:
-    AUTHORIZATION_CODE = "2393a87d8714bb8d82e107f36592d99bf5c53064".strip()
+    AUTHORIZATION_CODE = "153f4fe1a93ef47521e04ab8fbd78d856310c969".strip()
     
     token_url = "https://www.bling.com.br/Api/v3/oauth/token"
     credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
