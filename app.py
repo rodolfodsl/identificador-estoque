@@ -34,7 +34,7 @@ def baixar_imagem(url):
 def carregar_produtos_bling_v3():
     CLIENT_ID = "7cb24f904b59341c3bd3dd9037f1b8f772a56b6e"
     CLIENT_SECRET = "32cb95f1c1ba40f2acbceff3c6ada40cb378859192780ace48c92b64489b"
-    AUTHORIZATION_CODE = "94e16c7835d182bf066639bcc4b12ed19d19b7e9"
+    AUTHORIZATION_CODE = "23e5f6b2b1c1e8cb3b651195eb3a4bcff6ea4809"
     
     # 1. Trocar o código pelo Token de Acesso
     token_url = "https://www.bling.com.br/Api/v3/oauth/token"
@@ -86,7 +86,7 @@ def carregar_produtos_bling_v3():
                     nome = prod.get("nome", "")
                     codigo = prod.get("codigo", "Sem Código")
                     
-                    # Buscar imagens associadas na v3 se houver
+                    # Buscar imagens associadas na v3
                     link_img = None
                     if "midia" in prod and "imagens" in prod["midia"] and len(prod["midia"]["imagens"]) > 0:
                         link_img = prod["midia"]["imagens"][0].get("link")
