@@ -1,7 +1,8 @@
 streamlit
 pandas
-openpyxl
-Pillow
-sentence-transformers
 requests
+pillow
 beautifulsoup4
+openpyxl
+sentence-transformers
+torch
