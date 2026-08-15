@@ -30,26 +30,26 @@ def baixar_imagem(url):
     except Exception:
         return None
 
-# 2. Carregar produtos da planilha com "Disfarce de Navegador"
+# 2. Carregar produtos da planilha online
 @st.cache_data(ttl=1800)
 def carregar_catalogo(url_planilha):
     todos_produtos = []
     
     try:
-        # Disfarce para o OneDrive achar que somos o Google Chrome baixando o arquivo
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         }
         
         resposta = requests.get(url_planilha, headers=headers, allow_redirects=True)
         
-        # Verifica se o bloqueio persistiu
         if b"<html" in resposta.content[:20].lower():
-            st.error("O OneDrive retornou uma página bloqueada em vez do arquivo.")
+            st.error("O OneDrive bloqueou o download automático. Verifique o link.")
             return pd.DataFrame()
             
         arquivo_excel = BytesIO(resposta.content)
-        abas_dict = pd.read_excel(arquivo_excel, sheet_name=None)
+        
+        # AQUI ESTÁ A SOLUÇÃO DO ERRO: engine='openpyxl'
+        abas_dict = pd.read_excel(arquivo_excel, engine='openpyxl', sheet_name=None)
         
         for nome_aba, df in abas_dict.items():
             if any(chave in nome_aba.upper() for chave in ['BIJUTERIA', 'BOLSA', 'PRODUTO', 'ESTOQUE']):
