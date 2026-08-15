@@ -69,7 +69,7 @@ def carregar_catalogo(url_planilha):
     return df_final.dropna(subset=['embedding'])
 
 # Link direto para a sua planilha compartilhada do OneDrive
-URL_ONEDRIVE = "https://1drv.ms/x/c/abe99b31d34a8839/UQA5iErTMZvpIICrcQUAAAAAABvXjqK3EYeqBtE?download=1"
+URL_ONEDRIVE = "https://onedrive.live.com/download?cid=abe99b31d34a8839&resid=d34a8839-9b31-20e9-80ab-710500000000"
 
 with st.spinner("Sincronizando produtos com a planilha do OneDrive..."):
     catalogo = carregar_catalogo(URL_ONEDRIVE)
