@@ -4,7 +4,6 @@ import requests
 import base64
 from io import BytesIO
 from PIL import Image
-import google.generativeai as genai
 import json
 
 st.set_page_config(page_title="Identificador Gemini", layout="centered")
@@ -99,9 +98,13 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                         
                         with st.spinner("🤖 O Gemini está analisando a foto e cruzando com o seu estoque..."):
                             try:
-                                # Configuração oficial da biblioteca
-                                genai.configure(api_key=st.session_state['gemini_key'])
-                                modelo_gemini = genai.GenerativeModel('gemini-1.5-flash')
+                                buffered = BytesIO()
+                                img_original.save(buffered, format="JPEG")
+                                img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                                
+                                # Usando o endpoint v1beta com a chave passada diretamente na URL (Bypass total)
+                                chave_limpa = st.session_state['gemini_key']
+                                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={chave_limpa}"
                                 
                                 prompt = f"""
                                 Você é o especialista de estoque visual da loja Mocinha Biju.
@@ -118,26 +121,41 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 NÃO adicione crases (```), formatação markdown, nem texto. Apenas o array JSON puro.
                                 """
                                 
-                                response = modelo_gemini.generate_content([prompt, img_original])
-                                texto_puro = response.text.replace('```json', '').replace('```', '').strip()
-                                ids_recomendados = json.loads(texto_puro)
+                                payload = {
+                                    "contents": [{
+                                        "parts": [
+                                            {"text": prompt},
+                                            {"inline_data": {"mime_type": "image/jpeg", "data": img_base64}}
+                                        ]
+                                    }]
+                                }
                                 
-                                st.subheader("🎯 Resultado do Gemini:")
+                                resp_gemini = requests.post(gemini_url, headers={"Content-Type": "application/json"}, json=payload)
+                                dados_gemini = resp_gemini.json()
                                 
-                                for rank, id_rec in enumerate(ids_recomendados):
-                                    produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
-                                    if produto:
-                                        st.markdown(f"### {rank+1}º Lugar: {produto['nome']}")
-                                        col_1, col_2 = st.columns([1, 2])
-                                        with col_1:
-                                            img_oficial = baixar_foto_bling_unica(produto['id'], st.session_state['bling_token'])
-                                            if img_oficial:
-                                                st.image(img_oficial, width=150)
-                                            else:
-                                                st.warning("Sem foto no Bling")
-                                        with col_2:
-                                            st.write(f"**SKU:** `{produto['sku']}`")
-                                        st.divider()
+                                if "error" in dados_gemini:
+                                    st.error(f"Erro do Google: {dados_gemini['error']['message']}")
+                                else:
+                                    texto_resposta = dados_gemini['candidates'][0]['content']['parts'][0]['text']
+                                    texto_puro = texto_resposta.replace('```json', '').replace('```', '').strip()
+                                    ids_recomendados = json.loads(texto_puro)
+                                    
+                                    st.subheader("🎯 Resultado do Gemini:")
+                                    
+                                    for rank, id_rec in enumerate(ids_recomendados):
+                                        produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
+                                        if produto:
+                                            st.markdown(f"### {rank+1}º Lugar: {produto['nome']}")
+                                            col_1, col_2 = st.columns([1, 2])
+                                            with col_1:
+                                                img_oficial = baixar_foto_bling_unica(produto['id'], st.session_state['bling_token'])
+                                                if img_oficial:
+                                                    st.image(img_oficial, width=150)
+                                                else:
+                                                    st.warning("Sem foto no Bling")
+                                            with col_2:
+                                                st.write(f"**SKU:** `{produto['sku']}`")
+                                            st.divider()
                                             
                             except Exception as e:
                                 st.error(f"Erro no processamento da imagem: {e}")
