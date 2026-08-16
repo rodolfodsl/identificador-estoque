@@ -31,8 +31,8 @@ if st.sidebar.button("🔗 Conectar Tudo"):
                 resp_token = requests.post(token_url, headers=headers, data=data)
                 token_data = resp_token.json()
                 if "access_token" in token_data:
-                    st.session_state['bling_token'] = token_data["access_token"]
-                    st.session_state['gemini_key'] = gemini_key.strip()
+                    st.session_state['40e8728a9f77a3d0e9e648368919d154f22f6700'] = token_data["access_token"]
+                    st.session_state['AQ.Ab8RN6IR4lkpM40I1o3LsYlX9s_m79Fgt497mP0sxGrQmRKMTQ'] = gemini_key.strip()
                     st.success("Sistemas Conectados!")
                     st.rerun()
                 else:
