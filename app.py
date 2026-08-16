@@ -89,14 +89,13 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                 codigo_digitado = st.text_input("Código de Barras / SKU:")
                 
                 if codigo_digitado:
-                    # Tenta filtrar pelo campo 'Código' ou similar no CSV
                     col_codigo = 'Código' if 'Código' in df.columns else df.columns[0]
                     item_encontrado = df[df[col_codigo].str.contains(codigo_digitado.strip(), case=False, na=False)]
                     
                     if not item_encontrado.empty:
                         st.success(f"Item encontrado no catálogo!")
                         for _, row in item_encontrado.iterrows():
-                            st.markdown(### Produto: {row['Descrição']}")
+                            st.markdown(f"### Produto: {row['Descrição']}")
                             st.write(f"**ID:** `{row['ID']}` | **SKU / Código:** `{row.get('Código', 'N/A')}`")
                             
                             img_oficial = baixar_foto_bling_unica(str(row['ID']), st.session_state['bling_token'])
