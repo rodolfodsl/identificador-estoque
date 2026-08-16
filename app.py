@@ -8,7 +8,7 @@ import json
 from google import genai
 
 st.set_page_config(page_title="Identificador Gemini Interactions", layout="centered")
-st.title("🧠 Identificador Visual com Alta Precisão")
+st.title("🧠 Identificador Visual com Foco em Personagens")
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
@@ -86,18 +86,20 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                 
                 lista_produtos = []
                 for _, row in df_filtrado.iterrows():
+                    # Incluímos colunas extras do CSV se existirem para ajudar a IA a ler variações/temas
+                    detalhes = f"ID: {row['ID']} | Nome: {row['Descrição']} | Código: {row.get('Código', '')}"
                     lista_produtos.append({"id": str(row['ID']), "nome": str(row['Descrição']), "sku": str(row.get('Código', ''))})
                 
                 if len(lista_produtos) > 0:
                     st.divider()
-                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado de alta precisão.")
+                    st.info("📸 **A câmera está liberada!** Tire a foto do relógio da Moana para testar a precisão temática.")
                     
                     foto_tirada = st.camera_input("Fotografe a peça:")
                     
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🔍 Analisando micro-detalhes, personagens e estampas da foto..."):
+                        with st.spinner("🔍 Analisando o tema e personagem da foto com máxima precisão..."):
                             try:
                                 client = genai.Client(api_key=st.session_state['gemini_key'])
                                 
@@ -105,19 +107,16 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 img_original.save(buffered, format="JPEG")
                                 image_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
                                 
-                                # PROMPT REFORÇADO PARA MÁXIMA PRECISÃO VISUAL E DE PERSONAGENS
                                 prompt = f"""
-                                Você é o especialista sênior de estoque visual da loja Mocinha Biju.
-                                Examine minuciosamente a foto enviada deste produto real. 
-                                Observe os personagens estampados na pulseira ou no visor (ex: Toy Story, Homem Aranha, Unicórnio, etc.), cores e formato exato.
+                                Você é o especialista sênior de estoque da loja Mocinha Biju.
+                                Analise com extrema atenção a foto enviada. Identifique claramente qual é o personagem ou tema impresso no produto (ex: Moana, Toy Story, Homem Aranha, Unicórnio, etc.).
                                 
-                                Aqui está a lista JSON dos produtos cadastrados no sistema:
+                                Abaixo está a lista JSON dos produtos cadastrados:
                                 {json.dumps(lista_produtos, ensure_ascii=False)}
                                 
-                                TAREFA DE ALTA PRECISÃO:
-                                1. Faça um cruzamento visual rigoroso entre o que aparece na foto (personagem/estampa/modelo) e a descrição do produto na lista.
-                                2. Priorize o produto cujo nome combine exatamente com o tema visual visível na foto.
-                                3. Retorne EXATAMENTE UM ARRAY JSON contendo os 3 'id' correspondentes em ordem estrita de melhor correspondência visual.
+                                TAREFA:
+                                1. Encontre na lista o produto cujo nome ou variações melhor representem o personagem ou tema exato visto na foto (por exemplo, se a foto é da Moana, procure o item correspondente a relógios infantis temáticos).
+                                2. Retorne EXATAMENTE UM ARRAY JSON contendo os 3 'id' correspondentes em ordem de probabilidade.
                                 Exemplo: ["16629916212", "16629916213", "16629916214"]
                                 Retorne APENAS o array JSON puro, sem crases, sem formatação markdown e sem texto adicional.
                                 """
@@ -137,7 +136,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 texto_puro = interaction.output_text.replace('```json', '').replace('```', '').strip()
                                 ids_recomendados = json.loads(texto_puro)
                                 
-                                st.subheader("🎯 Resultado de Alta Precisão:")
+                                st.subheader("🎯 Resultado Focado em Precisão:")
                                 
                                 for rank, id_rec in enumerate(ids_recomendados):
                                     produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
@@ -155,4 +154,4 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                         st.divider()
                                             
                             except Exception as e:
-                                st.error(f"Erro na análise de precisão: {e}")
+                                st.error(f"Erro na análise: {e}")
