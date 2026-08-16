@@ -89,21 +89,21 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                 
                 if len(lista_produtos) > 0:
                     st.divider()
-                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde a mágica.")
+                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado.")
                     
                     foto_tirada = st.camera_input("Fotografe a peça:")
                     
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🤖 Olhando para a sua foto e lendo o estoque da Mocinha Biju..."):
+                        with st.spinner("🤖 O Gemini está analisando a foto e cruzando com o seu estoque..."):
                             try:
-                                # BYPASS: Conexão Direta com o Servidor (Ignora a biblioteca com defeito)
                                 buffered = BytesIO()
                                 img_original.save(buffered, format="JPEG")
                                 img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
                                 
-                                gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={st.session_state['gemini_key']}"
+                                # Usando a API moderna v1 com gemini-2.5-flash (aceita a chave limpa por parâmetro)
+                                gemini_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={st.session_state['gemini_key']}"
                                 
                                 prompt = f"""
                                 Você é o especialista de estoque visual da loja Mocinha Biju.
@@ -113,11 +113,11 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 {json.dumps(lista_produtos, ensure_ascii=False)}
                                 
                                 TAREFA:
-                                1. Observe os detalhes visuais da foto (formato do visor, cor do mostrador, cor da pulseira, tipo de metal/material, etc).
+                                1. Observe os detalhes visuais da foto (formato do visor, cor do mostrador, cor da pulseira, tipo de metal/material).
                                 2. Leia os 'nome' na lista e encontre as 3 opções que descrevem mais perfeitamente a imagem.
                                 3. Retorne EXATAMENTE UM ARRAY JSON com os 3 'id' correspondentes em ordem de probabilidade.
-                                Exemplo de retorno: ["16629916212", "16629916213", "16629916214"]
-                                NÃO adicione crases (```), formatação markdown, nem palavras. Apenas o array JSON puro.
+                                Exemplo: ["16629916212", "16629916213", "16629916214"]
+                                NÃO adicione crases (```), formatação markdown, nem texto. Apenas o array JSON puro.
                                 """
                                 
                                 payload = {
