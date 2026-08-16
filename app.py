@@ -14,30 +14,36 @@ st.title("🧠 Identificador Visual & Consulta por Código")
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534"
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25"
 
-# CHAVE DO GOOGLE FIXA
+# CHAVE DO GOOGLE FIXA (NUNCA MAIS PEDE)
 CHAVE_GOOGLE_FIXA = "aq09d6cbd96cc41f25b3f3b30a5c13855"
 
-# SEU CÓDIGO DE AUTORIZAÇÃO PERMANENTE DO BLING
-CODIGO_AUTORIZACAO_BLING = "45547017b9b4b79163fe2cb102af1a567a105d0a"
+# --- BARRA LATERAL PARA O CÓDIGO DO BLING ---
+st.sidebar.header("🔑 Conexão Bling")
+st.sidebar.info("Cole um novo código de autorização do Bling caso o token expire:")
+auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:", type="password")
 
-# --- CONEXÃO AUTOMÁTICA DO BLING EM SEGUNDO PLANO ---
-if 'bling_token' not in st.session_state:
-    try:
-        token_url = "https://api.bling.com.br/Api/v3/oauth/token"
-        credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
-        encoded_credentials = base64.b64encode(credentials.encode()).decode()
-        headers = {"Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "1.0"}
-        data = {"grant_type": "authorization_code", "code": CODIGO_AUTORIZACAO_BLING}
-        
-        resp_token = requests.post(token_url, headers=headers, data=data)
-        token_data = resp_token.json()
-        
-        if "access_token" in token_data:
-            st.session_state['bling_token'] = token_data["access_token"]
-        else:
-            st.error(f"Erro ao autenticar com o Bling: {token_data.get('error', 'Código expirado. Gere um novo código de autorização.')}")
-    except Exception as e:
-        st.error(f"Erro de conexão com o Bling: {e}")
+if st.sidebar.button("🔗 Conectar Bling"):
+    if auth_code_input:
+        try:
+            token_url = "https://api.bling.com.br/Api/v3/oauth/token"
+            credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+            encoded_credentials = base64.b64encode(credentials.encode()).decode()
+            headers = {"Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "1.0"}
+            data = {"grant_type": "authorization_code", "code": auth_code_input.strip()}
+            
+            resp_token = requests.post(token_url, headers=headers, data=data)
+            token_data = resp_token.json()
+            
+            if "access_token" in token_data:
+                st.session_state['bling_token'] = token_data["access_token"]
+                st.sidebar.success("Bling conectado com sucesso!")
+                st.rerun()
+            else:
+                st.sidebar.error(f"Erro: {token_data.get('description', 'Código inválido ou expirado.')}")
+        except Exception as e:
+            st.sidebar.error(f"Erro de conexão: {e}")
+    else:
+        st.sidebar.warning("Digite o código.")
 
 def baixar_foto_bling_unica(id_produto, token):
     headers_api = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
@@ -67,7 +73,7 @@ def baixar_foto_bling_unica(id_produto, token):
     return None
 
 if 'bling_token' in st.session_state:
-    st.success("✅ Bling e Gemini Conectados Fixos e Automáticos!")
+    st.success("✅ Bling Conectado e Pronto!")
     st.divider()
     
     arquivo_csv = st.file_uploader("Arraste o arquivo .csv do Bling", type=['csv'])
@@ -187,3 +193,5 @@ if 'bling_token' in st.session_state:
                                                 
                                 except Exception as e:
                                     st.error(f"Erro na análise de precisão: {e}")
+else:
+    st.warning("👈 Gere um novo código de autorização no painel do Bling e cole na barra lateral esquerda para conectar.")
