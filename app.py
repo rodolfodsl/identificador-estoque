@@ -16,7 +16,7 @@ CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".s
 
 @st.cache_resource
 def carregar_modelo():
-    return SentenceTransformer('clip-ViT-B-32')
+    return SentenceTransformer('clip-ViT-B-16')
 
 modelo = carregar_modelo()
 
