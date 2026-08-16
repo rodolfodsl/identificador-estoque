@@ -10,10 +10,10 @@ from sentence_transformers import SentenceTransformer, util
 st.set_page_config(page_title="Identificador Visual", layout="centered")
 st.title("👜 Identificador Visual de Estoque")
 
-# --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
+# MOTOR DOBRADO (ViT-B-16 tem muito mais precisão para detalhes finos)
 @st.cache_resource
 def carregar_modelo():
     return SentenceTransformer('clip-ViT-B-16')
@@ -23,7 +23,6 @@ modelo = carregar_modelo()
 def baixar_imagem(url, token=None):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        # Se for um link escondido do Bling, usamos sua Chave Mestra para furar o bloqueio
         if token and 'bling.com.br' in url:
             headers['Authorization'] = f'Bearer {token}'
             
@@ -38,13 +37,11 @@ def baixar_imagem(url, token=None):
         pass
     return None
 
-# --- TELA DE AUTENTICAÇÃO ---
 if 'access_token' not in st.session_state:
     st.warning("⚠️ Conexão com a API do Bling necessária para extrair as fotos.")
     st.markdown("""
     1. Gere um novo link de convite no painel do Bling.
-    2. Autorize o aplicativo.
-    3. Copie o **código** gerado na barra de endereços (o que vem depois de `code=`).
+    2. Copie o **código** gerado na barra de endereços (`code=...`).
     """)
     
     auth_code_input = st.text_input("Cole o CÓDIGO de autorização aqui:")
@@ -80,7 +77,6 @@ if 'access_token' not in st.session_state:
                 except Exception as e:
                     st.error(f"Erro de comunicação: {e}")
 
-# --- SISTEMA HÍBRIDO ---
 else:
     token = st.session_state['access_token']
     
@@ -94,17 +90,14 @@ else:
             
     st.divider()
     
-    st.info("💡 Envie a sua planilha CSV do Bling (aquela de 10 mil itens) para usarmos como Mapa.")
-    arquivo_csv = st.file_uploader("Arraste o arquivo .csv aqui", type=['csv'])
+    arquivo_csv = st.file_uploader("Arraste o arquivo .csv do Bling", type=['csv'])
     
     if arquivo_csv:
         df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
         
         if 'ID' in df.columns and 'Descrição' in df.columns:
-            st.write(f"📊 **Mapa do Estoque lido:** {len(df)} produtos cadastrados.")
-            
             st.markdown("### 🔍 Qual lote você quer fotografar agora?")
-            termo = st.text_input("Digite uma palavra (Ex: CINTO, BOLSA, UNHA, RELÓGIO):")
+            termo = st.text_input("Digite uma palavra (Ex: RELÓGIO, BOLSA):")
             
             if termo:
                 df_filtrado = df[df['Descrição'].str.contains(termo.upper(), na=False)].copy()
@@ -117,14 +110,11 @@ else:
                             del st.session_state['catalogo_com_ia']
                             
                     if 'catalogo_ativo' in st.session_state and 'catalogo_com_ia' not in st.session_state:
-                        st.write("⏳ **Arrombando as gavetas do Bling e baixando as fotos...**")
+                        st.write("⏳ **Baixando fotos de alta resolução do Bling...**")
                         barra = st.progress(0)
                         
                         produtos_finais = []
-                        headers_api = {
-                            "Authorization": f"Bearer {token}",
-                            "Accept": "application/json"
-                        }
+                        headers_api = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
                         
                         total = len(st.session_state['catalogo_ativo'])
                         for i, row in enumerate(st.session_state['catalogo_ativo']):
@@ -139,7 +129,6 @@ else:
                                     dados = resp.json().get('data', {})
                                     imagens = dados.get('midia', {}).get('imagens', {})
                                     
-                                    # O pulo do gato: desempacotando as gavetas do Bling corretamente
                                     if isinstance(imagens, dict):
                                         ext = imagens.get('externas', [])
                                         int_img = imagens.get('internas', [])
@@ -154,7 +143,6 @@ else:
                                 
                             emb = None
                             if link_foto:
-                                # Agora a função de baixar leva a sua chave (token) para furar o bloqueio!
                                 img_obj = baixar_imagem(link_foto, token)
                                 if img_obj:
                                     emb = modelo.encode(img_obj)
@@ -167,18 +155,17 @@ else:
                                     'embedding': emb
                                 })
                                 
-                            time.sleep(0.35) # Proteção para o Bling não bloquear
+                            time.sleep(0.35)
                             barra.progress(int(((i + 1) / total) * 100))
                             
                         st.session_state['catalogo_com_ia'] = pd.DataFrame(produtos_finais)
                         st.rerun()
                         
-                    # --- CÂMERA MÁGICA ---
                     elif 'catalogo_com_ia' in st.session_state:
                         catalogo = st.session_state['catalogo_com_ia']
                         
                         if len(catalogo) > 0:
-                            st.success(f"✅ Inteligência Artificial ligada! {len(catalogo)} peças com fotos prontas.")
+                            st.success(f"✅ Inteligência Artificial de Alta Precisão ligada!")
                             
                             if st.button("Limpar Lote / Trocar de Categoria"):
                                 del st.session_state['catalogo_ativo']
@@ -186,11 +173,28 @@ else:
                                 st.rerun()
                                 
                             st.divider()
-                            foto_tirada = st.camera_input("📸 Fotografe a peça:")
+                            st.markdown("### 📸 Dicas para cravar o acerto:")
+                            st.markdown("- **Esconda a etiqueta branca:** Ela confunde muito a IA. Dobre-a para trás.\n- **Fundo Limpo:** Coloque o relógio sobre uma folha de papel branca (sulfite) em vez da mesa de madeira.")
+                            
+                            foto_tirada = st.camera_input("Fotografe a peça bem centralizada:")
                             
                             if foto_tirada:
-                                img_busca = Image.open(foto_tirada).convert('RGB')
-                                emb_busca = modelo.encode(img_busca)
+                                img_original = Image.open(foto_tirada).convert('RGB')
+                                
+                                # ZOOM DIGITAL: Corta 40% das bordas (onde fica a mesa) e foca 60% no centro
+                                largura, altura = img_original.size
+                                tamanho = min(largura, altura) * 0.6
+                                esq = (largura - tamanho) / 2
+                                topo = (altura - tamanho) / 2
+                                dir = (largura + tamanho) / 2
+                                fundo = (altura + tamanho) / 2
+                                
+                                img_foco = img_original.crop((esq, topo, dir, fundo))
+                                
+                                st.write("👀 **O que a IA está analisando (Foco):**")
+                                st.image(img_foco, width=200)
+                                
+                                emb_busca = modelo.encode(img_foco)
                                 
                                 scores = []
                                 for emb_prod in catalogo['embedding']:
@@ -198,28 +202,22 @@ else:
                                     scores.append(sim)
                                     
                                 catalogo['similaridade'] = scores
-                                top_3 = catalogo.sort_values(by='similaridade', ascending=False).head(3)
+                                # Agora mostra o TOP 5 para garantir
+                                top_5 = catalogo.sort_values(by='similaridade', ascending=False).head(5)
                                 
                                 st.subheader("Itens Correspondentes:")
-                                for idx, item in top_3.iterrows():
+                                for idx, item in top_5.iterrows():
                                     st.markdown(f"### 🏷️ {item['nome']}")
                                     col_1, col_2 = st.columns([1, 2])
                                     with col_1:
-                                        # Precisamos do token para mostrar a foto na tela também
                                         img_ref = baixar_imagem(item['link'], token)
                                         if img_ref:
                                             st.image(img_ref, width=150)
                                     with col_2:
                                         st.write(f"**SKU:** `{item['codigo_barras']}`")
                                         st.write(f"**Precisão da IA:** {item['similaridade']:.1%}")
-                                        if item['similaridade'] >= 0.75:
+                                        if item['similaridade'] >= 0.70:
                                             st.success("✅ **ALTA PROBABILIDADE**")
                                     st.divider()
                         else:
-                            st.error("As pastas foram lidas, mas realmente não havia nenhuma foto salva no Bling para esses itens.")
-                            if st.button("Tentar Novamente"):
-                                del st.session_state['catalogo_ativo']
-                                del st.session_state['catalogo_com_ia']
-                                st.rerun()
-        else:
-            st.error("Planilha inválida. Certifique-se de que é a exportação do Bling.")
+                            st.error("Nenhuma foto foi encontrada no Bling para este lote.")
