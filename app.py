@@ -7,8 +7,8 @@ from PIL import Image
 import json
 from google import genai
 
-st.set_page_config(page_title="Identificador Gemini Interactions", layout="centered")
-st.title("🧠 Identificador Visual com Foco em Personagens")
+st.set_page_config(page_title="Identificador Gemini com Porcentagem", layout="centered")
+st.title("🧠 Identificador Visual com Taxa de Precisão")
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
@@ -86,20 +86,18 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                 
                 lista_produtos = []
                 for _, row in df_filtrado.iterrows():
-                    # Incluímos colunas extras do CSV se existirem para ajudar a IA a ler variações/temas
-                    detalhes = f"ID: {row['ID']} | Nome: {row['Descrição']} | Código: {row.get('Código', '')}"
                     lista_produtos.append({"id": str(row['ID']), "nome": str(row['Descrição']), "sku": str(row.get('Código', ''))})
                 
                 if len(lista_produtos) > 0:
                     st.divider()
-                    st.info("📸 **A câmera está liberada!** Tire a foto do relógio da Moana para testar a precisão temática.")
+                    st.info("📸 **A câmera está liberada!** Tire a foto do produto para receber a porcentagem de precisão.")
                     
                     foto_tirada = st.camera_input("Fotografe a peça:")
                     
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🔍 Analisando o tema e personagem da foto com máxima precisão..."):
+                        with st.spinner("📊 Calculando a porcentagem de compatibilidade com o estoque..."):
                             try:
                                 client = genai.Client(api_key=st.session_state['gemini_key'])
                                 
@@ -109,16 +107,22 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 
                                 prompt = f"""
                                 Você é o especialista sênior de estoque da loja Mocinha Biju.
-                                Analise com extrema atenção a foto enviada. Identifique claramente qual é o personagem ou tema impresso no produto (ex: Moana, Toy Story, Homem Aranha, Unicórnio, etc.).
+                                Analise a foto enviada e compare com a lista de produtos abaixo.
                                 
-                                Abaixo está a lista JSON dos produtos cadastrados:
+                                Lista JSON dos produtos cadastrados:
                                 {json.dumps(lista_produtos, ensure_ascii=False)}
                                 
                                 TAREFA:
-                                1. Encontre na lista o produto cujo nome ou variações melhor representem o personagem ou tema exato visto na foto (por exemplo, se a foto é da Moana, procure o item correspondente a relógios infantis temáticos).
-                                2. Retorne EXATAMENTE UM ARRAY JSON contendo os 3 'id' correspondentes em ordem de probabilidade.
-                                Exemplo: ["16629916212", "16629916213", "16629916214"]
-                                Retorne APENAS o array JSON puro, sem crases, sem formatação markdown e sem texto adicional.
+                                1. Encontre as 3 melhores opções de produtos correspondentes na lista.
+                                2. Atribua uma porcentagem estimada de precisão/compatibilidade (ex: 95, 80, 60) baseada nos detalhes visuais (cores, texturas, mostrador, pulseira).
+                                3. Retorne EXATAMENTE UM ARRAY JSON contendo 3 dicionários com as chaves 'id' e 'precisao'.
+                                Exemplo exato do formato esperado:
+                                [
+                                    {{"id": "16629916212", "precisao": "98%"}},
+                                    {{"id": "16629916213", "precisao": "82%"}},
+                                    {{"id": "16629916214", "precisao": "65%"}}
+                                ]
+                                Retorne APENAS o JSON puro, sem crases, sem formatação markdown e sem texto adicional.
                                 """
                                 
                                 interaction = client.interactions.create(
@@ -134,14 +138,17 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 )
                                 
                                 texto_puro = interaction.output_text.replace('```json', '').replace('```', '').strip()
-                                ids_recomendados = json.loads(texto_puro)
+                                itens_recomendados = json.loads(texto_puro)
                                 
-                                st.subheader("🎯 Resultado Focado em Precisão:")
+                                st.subheader("🎯 Resultados com Taxa de Precisão:")
                                 
-                                for rank, id_rec in enumerate(ids_recomendados):
+                                for rank, item_rec in enumerate(itens_recomendados):
+                                    id_rec = item_rec.get("id")
+                                    precisao = item_rec.get("precisao", "N/A")
+                                    
                                     produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
                                     if produto:
-                                        st.markdown(f"### {rank+1}º Lugar: {produto['nome']}")
+                                        st.markdown(f"### {rank+1}º Lugar: {produto['nome']} — **Compatibilidade: {precisao}**")
                                         col_1, col_2 = st.columns([1, 2])
                                         with col_1:
                                             img_oficial = baixar_foto_bling_unica(produto['id'], st.session_state['bling_token'])
@@ -154,4 +161,4 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                         st.divider()
                                             
                             except Exception as e:
-                                st.error(f"Erro na análise: {e}")
+                                st.error(f"Erro na análise de precisão: {e}")
