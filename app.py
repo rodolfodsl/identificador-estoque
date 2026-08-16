@@ -8,7 +8,7 @@ import json
 from google import genai
 
 st.set_page_config(page_title="Identificador Gemini Interactions", layout="centered")
-st.title("🧠 Identificador Visual com Gemini Interactions")
+st.title("🧠 Identificador Visual com Alta Precisão")
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
@@ -90,39 +90,38 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                 
                 if len(lista_produtos) > 0:
                     st.divider()
-                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado.")
+                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado de alta precisão.")
                     
                     foto_tirada = st.camera_input("Fotografe a peça:")
                     
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🤖 O Gemini (API Interactions) está cruzando a foto com o seu estoque..."):
+                        with st.spinner("🔍 Analisando micro-detalhes, personagens e estampas da foto..."):
                             try:
-                                # Inicialização correta com a nova biblioteca google-genai
                                 client = genai.Client(api_key=st.session_state['gemini_key'])
                                 
-                                # Convertendo a imagem para base64 para o formato multimodal estruturado da API Interactions
                                 buffered = BytesIO()
                                 img_original.save(buffered, format="JPEG")
                                 image_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
                                 
+                                # PROMPT REFORÇADO PARA MÁXIMA PRECISÃO VISUAL E DE PERSONAGENS
                                 prompt = f"""
-                                Você é o especialista de estoque visual da loja Mocinha Biju.
-                                Analise a foto enviada deste produto real.
+                                Você é o especialista sênior de estoque visual da loja Mocinha Biju.
+                                Examine minuciosamente a foto enviada deste produto real. 
+                                Observe os personagens estampados na pulseira ou no visor (ex: Toy Story, Homem Aranha, Unicórnio, etc.), cores e formato exato.
                                 
-                                Lista JSON dos produtos dessa categoria:
+                                Aqui está a lista JSON dos produtos cadastrados no sistema:
                                 {json.dumps(lista_produtos, ensure_ascii=False)}
                                 
-                                TAREFA:
-                                1. Observe os detalhes visuais da foto.
-                                2. Encontre as 3 opções da lista que melhor correspondem à imagem.
-                                3. Retorne EXATAMENTE UM ARRAY JSON com os 3 'id' correspondentes em ordem de probabilidade.
+                                TAREFA DE ALTA PRECISÃO:
+                                1. Faça um cruzamento visual rigoroso entre o que aparece na foto (personagem/estampa/modelo) e a descrição do produto na lista.
+                                2. Priorize o produto cujo nome combine exatamente com o tema visual visível na foto.
+                                3. Retorne EXATAMENTE UM ARRAY JSON contendo os 3 'id' correspondentes em ordem estrita de melhor correspondência visual.
                                 Exemplo: ["16629916212", "16629916213", "16629916214"]
-                                Retorne apenas o array JSON puro, sem crases ou markdown.
+                                Retorne APENAS o array JSON puro, sem crases, sem formatação markdown e sem texto adicional.
                                 """
                                 
-                                # Nova API Interactions multimodal recomendada
                                 interaction = client.interactions.create(
                                     model="gemini-3.6-flash",
                                     input=[
@@ -138,7 +137,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 texto_puro = interaction.output_text.replace('```json', '').replace('```', '').strip()
                                 ids_recomendados = json.loads(texto_puro)
                                 
-                                st.subheader("🎯 Resultado do Gemini:")
+                                st.subheader("🎯 Resultado de Alta Precisão:")
                                 
                                 for rank, id_rec in enumerate(ids_recomendados):
                                     produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
@@ -156,4 +155,4 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                         st.divider()
                                             
                             except Exception as e:
-                                st.error(f"Erro na análise do Gemini: {e}")
+                                st.error(f"Erro na análise de precisão: {e}")
