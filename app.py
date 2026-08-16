@@ -123,7 +123,7 @@ if 'bling_token' in st.session_state and 'groq_key' in st.session_state:
                                 """
                                 
                                 payload = {
-                                    "model": "llama-3.2-11b-vision-preview",
+                                    "model": "llama-3.2-90b-vision-preview",
                                     "messages": [
                                     {
                                         "role": "user",
