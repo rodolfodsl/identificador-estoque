@@ -20,16 +20,23 @@ def carregar_modelo():
 
 modelo = carregar_modelo()
 
-def baixar_imagem(url):
+def baixar_imagem(url, token=None):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
+        # Se for um link escondido do Bling, usamos sua Chave Mestra para furar o bloqueio
+        if token and 'bling.com.br' in url:
+            headers['Authorization'] = f'Bearer {token}'
+            
         url_limpa = str(url).split(',')[0].split('|')[0].strip()
         if url_limpa.startswith("//"):
             url_limpa = "https:" + url_limpa
-        resp = requests.get(url_limpa, headers=headers, timeout=5)
-        return Image.open(BytesIO(resp.content)).convert('RGB')
+            
+        resp = requests.get(url_limpa, headers=headers, timeout=6)
+        if resp.status_code == 200:
+            return Image.open(BytesIO(resp.content)).convert('RGB')
     except Exception:
-        return None
+        pass
+    return None
 
 # --- TELA DE AUTENTICAÇÃO ---
 if 'access_token' not in st.session_state:
@@ -110,7 +117,7 @@ else:
                             del st.session_state['catalogo_com_ia']
                             
                     if 'catalogo_ativo' in st.session_state and 'catalogo_com_ia' not in st.session_state:
-                        st.write("⏳ **Baixando as fotos do servidor do Bling...**")
+                        st.write("⏳ **Arrombando as gavetas do Bling e baixando as fotos...**")
                         barra = st.progress(0)
                         
                         produtos_finais = []
@@ -130,15 +137,25 @@ else:
                                 resp = requests.get(f"https://api.bling.com.br/Api/v3/produtos/{id_prod}", headers=headers_api, timeout=5)
                                 if resp.status_code == 200:
                                     dados = resp.json().get('data', {})
-                                    imagens = dados.get('midia', {}).get('imagens', [])
-                                    if len(imagens) > 0:
+                                    imagens = dados.get('midia', {}).get('imagens', {})
+                                    
+                                    # O pulo do gato: desempacotando as gavetas do Bling corretamente
+                                    if isinstance(imagens, dict):
+                                        ext = imagens.get('externas', [])
+                                        int_img = imagens.get('internas', [])
+                                        if ext and len(ext) > 0:
+                                            link_foto = ext[0].get('link')
+                                        elif int_img and len(int_img) > 0:
+                                            link_foto = int_img[0].get('linkMiniatura') or int_img[0].get('link')
+                                    elif isinstance(imagens, list) and len(imagens) > 0:
                                         link_foto = imagens[0].get('link') or imagens[0].get('url')
                             except Exception:
                                 pass
                                 
                             emb = None
                             if link_foto:
-                                img_obj = baixar_imagem(link_foto)
+                                # Agora a função de baixar leva a sua chave (token) para furar o bloqueio!
+                                img_obj = baixar_imagem(link_foto, token)
                                 if img_obj:
                                     emb = modelo.encode(img_obj)
                                     
@@ -161,7 +178,7 @@ else:
                         catalogo = st.session_state['catalogo_com_ia']
                         
                         if len(catalogo) > 0:
-                            st.success(f"✅ Inteligência Artificial ligada! {len(catalogo)} peças prontas.")
+                            st.success(f"✅ Inteligência Artificial ligada! {len(catalogo)} peças com fotos prontas.")
                             
                             if st.button("Limpar Lote / Trocar de Categoria"):
                                 del st.session_state['catalogo_ativo']
@@ -188,7 +205,8 @@ else:
                                     st.markdown(f"### 🏷️ {item['nome']}")
                                     col_1, col_2 = st.columns([1, 2])
                                     with col_1:
-                                        img_ref = baixar_imagem(item['link'])
+                                        # Precisamos do token para mostrar a foto na tela também
+                                        img_ref = baixar_imagem(item['link'], token)
                                         if img_ref:
                                             st.image(img_ref, width=150)
                                     with col_2:
@@ -198,7 +216,7 @@ else:
                                             st.success("✅ **ALTA PROBABILIDADE**")
                                     st.divider()
                         else:
-                            st.error("O Bling não retornou nenhuma foto para essa categoria. Tente outra.")
+                            st.error("As pastas foram lidas, mas realmente não havia nenhuma foto salva no Bling para esses itens.")
                             if st.button("Tentar Novamente"):
                                 del st.session_state['catalogo_ativo']
                                 del st.session_state['catalogo_com_ia']
