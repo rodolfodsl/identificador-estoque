@@ -19,7 +19,7 @@ CHAVE_GOOGLE_FIXA = "aq09d6cbd96cc41f25b3f3b30a5c13855".strip()
 
 # SEU REFRESH TOKEN OU CÓDIGO PERMANENTE DO BLING
 # Se tiver o refresh_token salvo, coloque aqui. Se tiver o authorization_code recém gerado, trocaremos para gerar o token na hora:
-CODIGO_AUTORIZACAO_BLING = "b1f1dfc804cc0b900d733602f73b6012aaf650a1".strip()
+81adc9a385675bd9d54001b8fc99b138c1e1a041 = "b1f1dfc804cc0b900d733602f73b6012aaf650a1".strip()
 
 # --- CONEXÃO AUTOMÁTICA DO BLING EM SEGUNDO PLANO ---
 if 'bling_token' not in st.session_state:
