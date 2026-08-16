@@ -7,9 +7,10 @@ from PIL import Image
 import json
 from google import genai
 
-st.set_page_config(page_title="Identificador Gemini 2026", layout="centered")
+st.set_page_config(page_title="Identificador Gemini Interactions", layout="centered")
 st.title("🧠 Identificador Visual com Gemini")
 
+# --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
@@ -96,9 +97,14 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🤖 O Gemini está cruzando a foto com o seu estoque..."):
+                        with st.spinner("🤖 O Gemini (API Interactions) está cruzando a foto com o seu estoque..."):
                             try:
                                 client = genai.Client(api_key=st.session_state['gemini_key'])
+                                
+                                # Convertendo a imagem para base64 para o formato multimodal da API Interactions
+                                buffered = BytesIO()
+                                img_original.save(buffered, format="JPEG")
+                                image_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
                                 
                                 prompt = f"""
                                 Você é o especialista de estoque visual da loja Mocinha Biju.
@@ -115,13 +121,20 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 Retorne apenas o array JSON puro, sem crases ou markdown.
                                 """
                                 
-                                # Modelo atualizado para a SDK 2026
-                                response = client.models.generate_content(
-                                    model='gemini-2.5-flash',
-                                    contents=[prompt, img_original]
+                                # Nova API Interactions suportando entrada multimodal estruturada
+                                interaction = client.interactions.create(
+                                    model="gemini-2.0-flash",
+                                    input=[
+                                        {
+                                            "type": "image",
+                                            "mime_type": "image/jpeg",
+                                            "data": image_b64,
+                                        },
+                                        {"type": "text", "text": prompt},
+                                    ],
                                 )
                                 
-                                texto_puro = response.text.replace('```json', '').replace('```', '').strip()
+                                texto_puro = interaction.output_text.replace('```json', '').replace('```', '').strip()
                                 ids_recomendados = json.loads(texto_puro)
                                 
                                 st.subheader("🎯 Resultado do Gemini:")
