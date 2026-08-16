@@ -4,17 +4,19 @@ import requests
 import base64
 from io import BytesIO
 from PIL import Image
-import google.generativeai as genai
 import json
+# A NOVA BIBLIOTECA OFICIAL:
+from google import genai
 
-st.set_page_config(page_title="Identificador Gemini Oficial", layout="centered")
-st.title("🧠 Identificador Visual com Gemini Oficial")
+st.set_page_config(page_title="Identificador Gemini 2026", layout="centered")
+st.title("🧠 Identificador Visual com Gemini")
 
+# --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
 st.sidebar.header("🔑 Conectar Sistemas")
-gemini_key = st.sidebar.text_input("Sua Chave do Google:", type="password")
+gemini_key = st.sidebar.text_input("Sua Chave do Google (AQ...):", type="password")
 auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
 
 if st.sidebar.button("🔗 Conectar Tudo"):
@@ -35,9 +37,9 @@ if st.sidebar.button("🔗 Conectar Tudo"):
                     st.success("Sistemas Conectados!")
                     st.rerun()
                 else:
-                    st.sidebar.error("Código do Bling expirado. Gere outro.")
+                    st.sidebar.error("Código do Bling expirado. Gere outro no painel.")
             except Exception as e:
-                st.sidebar.error(f"Erro: {e}")
+                st.sidebar.error(f"Erro de comunicação: {e}")
     else:
         st.sidebar.warning("Preencha as duas chaves.")
 
@@ -96,13 +98,10 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🤖 O Gemini oficial está analisando a foto..."):
+                        with st.spinner("🤖 Analisando a foto com o novo motor do Gemini..."):
                             try:
-                                # Força a configuração correta da credencial do Google
-                                genai.configure(api_key=st.session_state['gemini_key'])
-                                
-                                # Força o uso do modelo padrão atualizado
-                                modelo_gemini = genai.GenerativeModel('gemini-1.5-flash')
+                                # INICIALIZAÇÃO CORRETA COM A CHAVE AQ...
+                                client = genai.Client(api_key=st.session_state['gemini_key'])
                                 
                                 prompt = f"""
                                 Você é o especialista de estoque visual da loja Mocinha Biju.
@@ -119,7 +118,12 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 Retorne apenas o array JSON puro, sem crases ou markdown.
                                 """
                                 
-                                response = modelo_gemini.generate_content([prompt, img_original])
+                                # CHAMADA DA NOVA BIBLIOTECA
+                                response = client.models.generate_content(
+                                    model='gemini-1.5-flash',
+                                    contents=[prompt, img_original]
+                                )
+                                
                                 texto_puro = response.text.replace('```json', '').replace('```', '').strip()
                                 ids_recomendados = json.loads(texto_puro)
                                 
