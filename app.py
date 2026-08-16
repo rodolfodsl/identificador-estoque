@@ -8,14 +8,14 @@ import json
 from google import genai
 
 st.set_page_config(page_title="Identificador Gemini Interactions", layout="centered")
-st.title("🧠 Identificador Visual com Gemini")
+st.title("🧠 Identificador Visual com Gemini Interactions")
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
 st.sidebar.header("🔑 Conectar Sistemas")
-gemini_key = st.sidebar.text_input("Sua Chave do Google (AQ...):", type="password")
+gemini_key = st.sidebar.text_input("Sua Chave do Google:", type="password")
 auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
 
 if st.sidebar.button("🔗 Conectar Tudo"):
@@ -99,9 +99,10 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                         
                         with st.spinner("🤖 O Gemini (API Interactions) está cruzando a foto com o seu estoque..."):
                             try:
+                                # Inicialização correta com a nova biblioteca google-genai
                                 client = genai.Client(api_key=st.session_state['gemini_key'])
                                 
-                                # Convertendo a imagem para base64 para o formato multimodal da API Interactions
+                                # Convertendo a imagem para base64 para o formato multimodal estruturado da API Interactions
                                 buffered = BytesIO()
                                 img_original.save(buffered, format="JPEG")
                                 image_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -121,9 +122,9 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                                 Retorne apenas o array JSON puro, sem crases ou markdown.
                                 """
                                 
-                                # Nova API Interactions suportando entrada multimodal estruturada
+                                # Nova API Interactions multimodal recomendada
                                 interaction = client.interactions.create(
-                                    model="gemini-2.0-flash",
+                                    model="gemini-3.6-flash",
                                     input=[
                                         {
                                             "type": "image",
