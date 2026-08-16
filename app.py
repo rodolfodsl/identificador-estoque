@@ -7,40 +7,37 @@ from PIL import Image
 import json
 from google import genai
 
-st.set_page_config(page_title="Identificador Visual e Código de Barras", layout="centered")
+st.set_page_config(page_title="Identificador Visual Automatizado", layout="centered")
 st.title("🧠 Identificador Visual & Consulta por Código")
 
-# --- CREDENCIAIS FIXAS DO BLING ---
+# --- CREDENCIAIS FIXAS (CONECTADAS DIRETO PARA USO EM QUALQUER APARELHO) ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
-st.sidebar.header("🔑 Conectar Sistemas")
-gemini_key = st.sidebar.text_input("Sua Chave do Google:", type="password")
-auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
+# SEU CÓDIGO DE AUTORIZAÇÃO PERMANENTE DO BLING (ATUALIZADO AQUI)
+CODIGO_BLING_FIXO = "b1f1dfc804cc0b900d733602f73b6012aaf650a1"
 
-if st.sidebar.button("🔗 Conectar Tudo"):
-    if gemini_key and auth_code_input:
-        with st.spinner("Conectando..."):
+# SUA CHAVE DO GOOGLE FIXA (COLOQUE SUA CHAVE AQ... ABAIXO ENTRE AS ASPAS)
+CHAVE_GOOGLE_FIXA = "aq09d6cbd96cc41f25b3f3b30a5c13855"
+
+# --- GERENCIAMENTO AUTOMÁTICO DE SESSÃO DO BLING ---
+if 'bling_token' not in st.session_state:
+    with st.spinner("Autenticando automaticamente com o Bling..."):
+        try:
             token_url = "https://api.bling.com.br/Api/v3/oauth/token"
             credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
             encoded_credentials = base64.b64encode(credentials.encode()).decode()
             headers = {"Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "1.0"}
-            data = {"grant_type": "authorization_code", "code": auth_code_input.strip()}
+            data = {"grant_type": "authorization_code", "code": CODIGO_BLING_FIXO.strip()}
             
-            try:
-                resp_token = requests.post(token_url, headers=headers, data=data)
-                token_data = resp_token.json()
-                if "access_token" in token_data:
-                    st.session_state['40e8728a9f77a3d0e9e648368919d154f22f6700'] = token_data["access_token"]
-                    st.session_state['AQ.Ab8RN6IR4lkpM40I1o3LsYlX9s_m79Fgt497mP0sxGrQmRKMTQ'] = gemini_key.strip()
-                    st.success("Sistemas Conectados!")
-                    st.rerun()
-                else:
-                    st.sidebar.error("Código do Bling expirado. Gere outro no painel.")
-            except Exception as e:
-                st.sidebar.error(f"Erro de comunicação: {e}")
-    else:
-        st.sidebar.warning("Preencha as duas chaves.")
+            resp_token = requests.post(token_url, headers=headers, data=data)
+            token_data = resp_token.json()
+            if "access_token" in token_data:
+                st.session_state['bling_token'] = token_data["access_token"]
+            else:
+                st.error("Erro ao gerar token automático do Bling. Verifique o código de autorização.")
+        except Exception as e:
+            st.error(f"Erro na conexão com o Bling: {e}")
 
 def baixar_foto_bling_unica(id_produto, token):
     headers_api = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
@@ -69,8 +66,8 @@ def baixar_foto_bling_unica(id_produto, token):
         pass
     return None
 
-if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
-    st.success("✅ Bling e Gemini Conectados!")
+if 'bling_token' in st.session_state:
+    st.success("✅ Sistemas Conectados Automaticamente!")
     st.divider()
     
     arquivo_csv = st.file_uploader("Arraste o arquivo .csv do Bling", type=['csv'])
@@ -79,11 +76,9 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
         df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
         if 'ID' in df.columns and 'Descrição' in df.columns:
             
-            # --- ABAS DE ESCOLHA: FOTO OU CÓDIGO DE BARRAS ---
             aba_escolha = st.radio("Como você quer consultar o item?", ["📷 Identificação Visual por Câmera", "🏷️ Buscar por Código de Barras / SKU"])
             st.divider()
             
-            # OPÇÃO 1: BUSCA DIRETA POR CÓDIGO DE BARRAS / SKU
             if aba_escolha == "🏷️ Buscar por Código de Barras / SKU":
                 st.info("Digite ou escaneie o código de barras/SKU impresso na etiqueta.")
                 codigo_digitado = st.text_input("Código de Barras / SKU:")
@@ -93,7 +88,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                     item_encontrado = df[df[col_codigo].str.contains(codigo_digitado.strip(), case=False, na=False)]
                     
                     if not item_encontrado.empty:
-                        st.success(f"Item encontrado no catálogo!")
+                        st.success("Item encontrado no catálogo!")
                         for _, row in item_encontrado.iterrows():
                             st.markdown(f"### Produto: {row['Descrição']}")
                             st.write(f"**ID:** `{row['ID']}` | **SKU / Código:** `{row.get('Código', 'N/A')}`")
@@ -107,7 +102,6 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                     else:
                         st.warning("Nenhum produto encontrado com este código de barras no CSV carregado.")
 
-            # OPÇÃO 2: IDENTIFICAÇÃO VISUAL POR CÂMERA (COM IA E % DE PRECISÃO)
             else:
                 termo = st.text_input("Qual categoria vamos buscar? (Ex: RELÓGIO):")
                 
@@ -130,7 +124,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                             
                             with st.spinner("📊 Analisando imagem e calculando compatibilidade..."):
                                 try:
-                                    client = genai.Client(api_key=st.session_state['gemini_key'])
+                                    client = genai.Client(api_key=CHAVE_GOOGLE_FIXA)
                                     
                                     buffered = BytesIO()
                                     img_original.save(buffered, format="JPEG")
