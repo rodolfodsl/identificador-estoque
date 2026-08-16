@@ -4,20 +4,21 @@ import requests
 import base64
 from io import BytesIO
 from PIL import Image
+import google.generativeai as genai
 import json
 
-st.set_page_config(page_title="Identificador Visual Groq", layout="centered")
-st.title("🧠 Identificador Visual com Llama Vision")
+st.set_page_config(page_title="Identificador Gemini Oficial", layout="centered")
+st.title("🧠 Identificador Visual com Gemini Oficial")
 
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
 st.sidebar.header("🔑 Conectar Sistemas")
-groq_key = st.sidebar.text_input("Sua Chave API do Groq (gsk_...):", type="password")
+gemini_key = st.sidebar.text_input("Sua Chave do Google:", type="password")
 auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
 
 if st.sidebar.button("🔗 Conectar Tudo"):
-    if groq_key and auth_code_input:
+    if gemini_key and auth_code_input:
         with st.spinner("Conectando..."):
             token_url = "https://api.bling.com.br/Api/v3/oauth/token"
             credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
@@ -30,7 +31,7 @@ if st.sidebar.button("🔗 Conectar Tudo"):
                 token_data = resp_token.json()
                 if "access_token" in token_data:
                     st.session_state['bling_token'] = token_data["access_token"]
-                    st.session_state['groq_key'] = groq_key.strip()
+                    st.session_state['gemini_key'] = gemini_key.strip()
                     st.success("Sistemas Conectados!")
                     st.rerun()
                 else:
@@ -67,8 +68,8 @@ def baixar_foto_bling_unica(id_produto, token):
         pass
     return None
 
-if 'bling_token' in st.session_state and 'groq_key' in st.session_state:
-    st.success("✅ Bling e Groq Conectados!")
+if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
+    st.success("✅ Bling e Gemini Conectados!")
     st.divider()
     
     arquivo_csv = st.file_uploader("Arraste o arquivo .csv do Bling", type=['csv'])
@@ -88,79 +89,56 @@ if 'bling_token' in st.session_state and 'groq_key' in st.session_state:
                 
                 if len(lista_produtos) > 0:
                     st.divider()
-                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado instantâneo.")
+                    st.info("📸 **A câmera está liberada!** Tire a foto do produto e aguarde o resultado.")
                     
                     foto_tirada = st.camera_input("Fotografe a peça:")
                     
                     if foto_tirada:
                         img_original = Image.open(foto_tirada).convert('RGB')
                         
-                        with st.spinner("🤖 O Llama Vision está analisando a foto e cruzando com o seu estoque..."):
+                        with st.spinner("🤖 O Gemini oficial está analisando a foto..."):
                             try:
-                                buffered = BytesIO()
-                                img_original.save(buffered, format="JPEG")
-                                img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                                # Força a configuração correta da credencial do Google
+                                genai.configure(api_key=st.session_state['gemini_key'])
                                 
-                                url_groq = "https://api.groq.com/openai/v1/chat/completions"
-                                headers_groq = {
-                                    "Authorization": f"Bearer {st.session_state['groq_key']}",
-                                    "Content-Type": "application/json"
-                                }
+                                # Força o uso do modelo padrão atualizado
+                                modelo_gemini = genai.GenerativeModel('gemini-1.5-flash')
                                 
                                 prompt = f"""
                                 Você é o especialista de estoque visual da loja Mocinha Biju.
                                 Analise a foto enviada deste produto real.
                                 
-                                Aqui está a lista JSON dos produtos dessa categoria:
+                                Lista JSON dos produtos dessa categoria:
                                 {json.dumps(lista_produtos, ensure_ascii=False)}
                                 
                                 TAREFA:
-                                1. Observe os detalhes visuais da foto (formato, cor, material).
-                                2. Leia os 'nome' na lista e encontre as 3 opções que descrevem perfeitamente a imagem.
+                                1. Observe os detalhes visuais da foto.
+                                2. Encontre as 3 opções da lista que melhor correspondem à imagem.
                                 3. Retorne EXATAMENTE UM ARRAY JSON com os 3 'id' correspondentes em ordem de probabilidade.
                                 Exemplo: ["16629916212", "16629916213", "16629916214"]
-                                NÃO adicione crases, formatação markdown ou texto extra. Apenas o array JSON puro.
+                                Retorne apenas o array JSON puro, sem crases ou markdown.
                                 """
                                 
-                                payload = {
-                                    "model": "llama-3.2-90b-vision-preview",
-                                    "messages": [
-                                    {
-                                        "role": "user",
-                                        "content": [
-                                            {"type": "text", "text": prompt},
-                                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"}}
-                                        ]
-                                    }
-                                ]
-                                }
+                                response = modelo_gemini.generate_content([prompt, img_original])
+                                texto_puro = response.text.replace('```json', '').replace('```', '').strip()
+                                ids_recomendados = json.loads(texto_puro)
                                 
-                                resp_groq = requests.post(url_groq, headers=headers_groq, json=payload)
-                                dados_groq = resp_groq.json()
+                                st.subheader("🎯 Resultado do Gemini:")
                                 
-                                if "error" in dados_groq:
-                                    st.error(f"Erro do Groq: {dados_groq['error']['message']}")
-                                else:
-                                    texto_resposta = dados_groq['choices'][0]['message']['content']
-                                    texto_puro = texto_resposta.replace('```json', '').replace('```', '').strip()
-                                    ids_recomendados = json.loads(texto_puro)
-                                    
-                                    st.subheader("🎯 Resultado da IA:")
-                                    
-                                    for rank, id_rec in enumerate(ids_recomendados):
-                                        produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
-                                        if produto:
-                                            st.markdown(f"### {rank+1}º Lugar: {produto['nome']}")
-                                            col_1, col_2 = st.columns([1, 2])
-                                            with col_1:
-                                                img_oficial = baixar_foto_bling_unica(produto['id'], st.session_state['bling_token'])
-                                                if img_oficial:
-                                                    st.image(img_oficial, width=150)
-                                                else:
-                                                    st.warning("Sem foto no Bling")
-                                            with col_2:
-                                                st.write(f"**SKU:** `{produto['sku']}`")
-                                            st.divider()
+                                for rank, id_rec in enumerate(ids_recomendados):
+                                    produto = next((item for item in lista_produtos if item["id"] == id_rec), None)
+                                    if produto:
+                                        st.markdown(f"### {rank+1}º Lugar: {produto['nome']}")
+                                        col_1, col_2 = st.columns([1, 2])
+                                        with col_1:
+                                            img_oficial = baixar_foto_bling_unica(produto['id'], st.session_state['bling_token'])
+                                            if img_oficial:
+                                                st.image(img_oficial, width=150)
+                                            else:
+                                                st.warning("Sem foto no Bling")
+                                        with col_2:
+                                            st.write(f"**SKU:** `{produto['sku']}`")
+                                        st.divider()
                                             
                             except Exception as e:
-                                st.error(f"Erro no processamento da imagem: {e}")
+                                st.error(f"Erro na análise do Gemini: {e}")
