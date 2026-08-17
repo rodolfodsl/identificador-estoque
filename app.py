@@ -15,10 +15,8 @@ st.title("🧠 Identificador Visual & Consulta por Código")
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
-# =====================================================================
-# ATENÇÃO: COLE SUA CHAVE VERDADEIRA DO GOOGLE AQUI (A QUE COMEÇA COM AIza)
-# =====================================================================
-CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6J_-5qDGGBa_EsX6Q8RTSRdbWbC6VjQBhq-JnYEHfaxKQ"
+# A SUA CHAVE DE AUTORIZAÇÃO OFICIAL DO GOOGLE 2026
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6JaqpCnoNxCIrDi9A3jW1YONwm3he2Xq5c3hn9RWyjtOA"
 
 # --- GERENCIAMENTO INVISÍVEL DO TOKEN DO BLING ---
 TOKEN_FILE = "bling_tokens.json"
@@ -49,12 +47,11 @@ if 'bling_token' not in st.session_state:
             new_tokens = resp.json()
             if "access_token" in new_tokens:
                 st.session_state['bling_token'] = new_tokens["access_token"]
-                # Salva o novo token gerado para manter a sessão viva para sempre
                 save_tokens(new_tokens["access_token"], new_tokens.get("refresh_token", saved_tokens["refresh_token"]))
         except Exception:
             pass
 
-# --- BARRA LATERAL (APARECE APENAS NO PRIMEIRO USO) ---
+# --- BARRA LATERAL (APARECE APENAS NO PRIMEIRO USO PARA O BLING) ---
 if 'bling_token' not in st.session_state:
     st.sidebar.header("🔑 Primeira Conexão")
     st.sidebar.info("A chave do Google já está fixa. Gere o código do Bling no painel e cole aqui apenas esta vez para ativarmos o acesso permanente.")
@@ -147,7 +144,7 @@ if 'bling_token' in st.session_state:
                     else:
                         st.warning("Nenhum produto encontrado com este código de barras no CSV carregado.")
 
-            # OPÇÃO 2: IDENTIFICAÇÃO VISUAL POR CÂMERA (COM IA E % DE PRECISÃO)
+            # OPÇÃO 2: IDENTIFICAÇÃO VISUAL POR CÂMERA
             else:
                 termo = st.text_input("Qual categoria vamos buscar? (Ex: RELÓGIO, ARGOLA):")
                 
