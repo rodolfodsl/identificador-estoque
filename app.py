@@ -12,9 +12,9 @@ st.set_page_config(page_title="Identificador Visual e Consulta", layout="centere
 st.title("🧠 Identificador Visual & Consulta por Código")
 
 # =====================================================================
-# 1. COLOQUE SUA CHAVE DO GOOGLE AQUI (A MESMA QUE FUNCIONOU NA BARRA LATERAL)
+# CHAVE DO GOOGLE INCORPORADA COM SUCESSO (COMPLETA E FIXA)
 # =====================================================================
-CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmIher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
