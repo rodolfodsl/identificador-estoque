@@ -18,7 +18,7 @@ CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".s
 # =====================================================================
 # ATENÇÃO: COLE SUA CHAVE VERDADEIRA DO GOOGLE AQUI (A QUE COMEÇA COM AIza)
 # =====================================================================
-CHAVE_GOOGLE_FIXA = "COLE_SUA_CHAVE_AIza_AQUI"
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6J_-5qDGGBa_EsX6Q8RTSRdbWbC6VjQBhq-JnYEHfaxKQ"
 
 # --- GERENCIAMENTO INVISÍVEL DO TOKEN DO BLING ---
 TOKEN_FILE = "bling_tokens.json"
