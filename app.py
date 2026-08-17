@@ -12,9 +12,12 @@ st.set_page_config(page_title="Identificador Visual e Consulta", layout="centere
 st.title("🧠 Identificador Visual & Consulta por Código")
 
 # =====================================================================
-# CHAVE DO GOOGLE INCORPORADA COM SUCESSO (COMPLETA E FIXA)
+# CHAVE DO GOOGLE INCORPORADA (COMPLETA E FIXA)
 # =====================================================================
 CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
+
+# INJETANDO A CHAVE COMO VARIÁVEL DE AMBIENTE (RECOMENDADO PELA GOOGLE)
+os.environ["GEMINI_API_KEY"] = CHAVE_GOOGLE_FIXA.strip()
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
@@ -166,7 +169,8 @@ if 'bling_token' in st.session_state:
                             
                             with st.spinner("📊 Analisando imagem e calculando compatibilidade..."):
                                 try:
-                                    client = genai.Client(api_key=CHAVE_GOOGLE_FIXA.strip())
+                                    # INICIALIZA O CLIENTE VAZIO (ELE PUXA AUTOMATICAMENTE A VARIÁVEL DE AMBIENTE)
+                                    client = genai.Client()
                                     
                                     buffered = BytesIO()
                                     img_original.save(buffered, format="JPEG")
