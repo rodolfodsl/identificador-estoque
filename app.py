@@ -12,9 +12,9 @@ st.set_page_config(page_title="Identificador Visual e Consulta", layout="centere
 st.title("🧠 Identificador Visual & Consulta por Código")
 
 # =====================================================================
-# CHAVE DO GOOGLE INCORPORADA E BLINDADA CONTRA ESPAÇOS INVISÍVEIS
+# CHAVE DO GOOGLE CORRETA E DEFINITIVA (CHAVE DE AUTORIZAÇÃO 'AQ.')
 # =====================================================================
-CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg".strip()
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
@@ -166,7 +166,7 @@ if 'bling_token' in st.session_state:
                             
                             with st.spinner("📊 Analisando imagem e calculando compatibilidade..."):
                                 try:
-                                    # PASSANDO A CHAVE DIRETO (IGUAL QUANDO DEU 99% DE PRECISÃO)
+                                    # CHAMA O CLIENTE USANDO A CHAVE FIXA ATUALIZADA
                                     client = genai.Client(api_key=CHAVE_GOOGLE_FIXA)
                                     
                                     buffered = BytesIO()
