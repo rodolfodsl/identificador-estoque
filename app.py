@@ -5,6 +5,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 import json
+import os
 from google import genai
 
 st.set_page_config(page_title="Identificador Visual Automatizado", layout="centered")
@@ -105,12 +106,11 @@ if 'bling_token' in st.session_state:
     st.success("✅ Sistema Conectado ao OneDrive e Bling!")
     
     # CARREGAMENTO AUTOMÁTICO DA PLANILHA DO ONEDRIVE
-    @st.cache_data(ttl=600) # Atualiza o cache a cada 10 minutos
+    @st.cache_data(ttl=600)
     def carregar_planilha_nuvem():
         try:
             resp = requests.get(LINK_ONEDRIVE)
             if resp.status_code == 200:
-                # Lê o Excel usando pandas (lendo a primeira aba por padrão)
                 df = pd.read_excel(BytesIO(resp.content), dtype=str)
                 return df
         except Exception as e:
@@ -121,10 +121,8 @@ if 'bling_token' in st.session_state:
         df = carregar_planilha_nuvem()
 
     if df is not None:
-        # Padronizando as colunas com base na sua estrutura (Coluna A = Produto, Coluna J = Código de Barras)
-        # O script localiza os nomes corretos independentemente de maiúsculas/minúsculas
         col_produto = df.columns[0] # Coluna A
-        col_codigo = df.columns[9] if len(df.columns) > 9 else df.columns[1] # Coluna J (índice 9) ou segunda coluna caso ajuste
+        col_codigo = df.columns[9] if len(df.columns) > 9 else df.columns[1] # Coluna J
         
         st.divider()
         aba_escolha = st.radio("Como você quer consultar o item?", ["📷 Identificação Visual por Câmera", "🏷️ Buscar por Código de Barras / SKU"])
@@ -142,7 +140,7 @@ if 'bling_token' in st.session_state:
                     for _, row in item_encontrado.iterrows():
                         nome_prod = row[col_produto]
                         cod_prod = row[col_codigo]
-                        st.markdown(### Produto: {nome_prod})
+                        st.markdown(f"### Produto: {nome_prod}")
                         st.write(f"**Código de Barras / SKU:** `{cod_prod}`")
                         st.divider()
                 else:
@@ -158,7 +156,7 @@ if 'bling_token' in st.session_state:
                 lista_produtos = []
                 for index, row in df_filtrado.iterrows():
                     lista_produtos.append({
-                        "id": str(index), # Usa o número da linha como ID interno
+                        "id": str(index),
                         "nome": str(row[col_produto]),
                         "sku": str(row[col_codigo])
                     })
