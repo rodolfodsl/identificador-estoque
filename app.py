@@ -5,43 +5,82 @@ import base64
 from io import BytesIO
 from PIL import Image
 import json
+import os
 from google import genai
 
 st.set_page_config(page_title="Identificador Visual e Código de Barras", layout="centered")
 st.title("🧠 Identificador Visual & Consulta por Código")
 
-# --- CREDENCIAIS FIXAS DO BLING ---
+# --- CREDENCIAIS FIXAS ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
-st.sidebar.header("🔑 Conectar Sistemas")
-gemini_key = st.sidebar.text_input("Sua Chave do Google:", type="password")
-auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
+# =====================================================================
+# ATENÇÃO: COLE SUA CHAVE VERDADEIRA DO GOOGLE AQUI (A QUE COMEÇA COM AIza)
+# =====================================================================
+CHAVE_GOOGLE_FIXA = "COLE_SUA_CHAVE_AIza_AQUI"
 
-if st.sidebar.button("🔗 Conectar Tudo"):
-    if gemini_key and auth_code_input:
-        with st.spinner("Conectando..."):
+# --- GERENCIAMENTO INVISÍVEL DO TOKEN DO BLING ---
+TOKEN_FILE = "bling_tokens.json"
+
+def get_auth_header():
+    credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    encoded = base64.b64encode(credentials.encode()).decode()
+    return {"Authorization": f"Basic {encoded}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "1.0"}
+
+def save_tokens(access_token, refresh_token):
+    with open(TOKEN_FILE, "w") as f:
+        json.dump({"access_token": access_token, "refresh_token": refresh_token}, f)
+
+def load_tokens():
+    if os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE, "r") as f:
+            return json.load(f)
+    return None
+
+# Tentativa de reconexão automática em segundo plano
+if 'bling_token' not in st.session_state:
+    saved_tokens = load_tokens()
+    if saved_tokens and "refresh_token" in saved_tokens:
+        try:
             token_url = "https://api.bling.com.br/Api/v3/oauth/token"
-            credentials = f"{CLIENT_ID}:{CLIENT_SECRET}"
-            encoded_credentials = base64.b64encode(credentials.encode()).decode()
-            headers = {"Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "1.0"}
-            data = {"grant_type": "authorization_code", "code": auth_code_input.strip()}
-            
-            try:
-                resp_token = requests.post(token_url, headers=headers, data=data)
-                token_data = resp_token.json()
-                if "access_token" in token_data:
-                    st.session_state['bling_token'] = token_data["access_token"]
-                    st.session_state['gemini_key'] = gemini_key.strip()
-                    st.success("Sistemas Conectados!")
-                    st.rerun()
-                else:
-                    st.sidebar.error("Código do Bling expirado. Gere outro no painel.")
-            except Exception as e:
-                st.sidebar.error(f"Erro de comunicação: {e}")
-    else:
-        st.sidebar.warning("Preencha as duas chaves.")
+            data = {"grant_type": "refresh_token", "refresh_token": saved_tokens["refresh_token"]}
+            resp = requests.post(token_url, headers=get_auth_header(), data=data)
+            new_tokens = resp.json()
+            if "access_token" in new_tokens:
+                st.session_state['bling_token'] = new_tokens["access_token"]
+                # Salva o novo token gerado para manter a sessão viva para sempre
+                save_tokens(new_tokens["access_token"], new_tokens.get("refresh_token", saved_tokens["refresh_token"]))
+        except Exception:
+            pass
 
+# --- BARRA LATERAL (APARECE APENAS NO PRIMEIRO USO) ---
+if 'bling_token' not in st.session_state:
+    st.sidebar.header("🔑 Primeira Conexão")
+    st.sidebar.info("A chave do Google já está fixa. Gere o código do Bling no painel e cole aqui apenas esta vez para ativarmos o acesso permanente.")
+    auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
+    
+    if st.sidebar.button("🔗 Conectar e Salvar Sessão"):
+        if auth_code_input:
+            with st.spinner("Autenticando..."):
+                token_url = "https://api.bling.com.br/Api/v3/oauth/token"
+                data = {"grant_type": "authorization_code", "code": auth_code_input.strip()}
+                try:
+                    resp_token = requests.post(token_url, headers=get_auth_header(), data=data)
+                    token_data = resp_token.json()
+                    if "access_token" in token_data:
+                        st.session_state['bling_token'] = token_data["access_token"]
+                        save_tokens(token_data["access_token"], token_data.get("refresh_token", ""))
+                        st.sidebar.success("Conectado! Você não precisará fazer isso novamente.")
+                        st.rerun()
+                    else:
+                        st.sidebar.error("Código do Bling expirado. Gere outro no painel.")
+                except Exception as e:
+                    st.sidebar.error(f"Erro de comunicação: {e}")
+        else:
+            st.sidebar.warning("Preencha o código do Bling.")
+
+# --- FUNÇÕES PRINCIPAIS DO SISTEMA ---
 def baixar_foto_bling_unica(id_produto, token):
     headers_api = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     try:
@@ -69,8 +108,9 @@ def baixar_foto_bling_unica(id_produto, token):
         pass
     return None
 
-if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
-    st.success("✅ Bling e Gemini Conectados!")
+# SÓ CARREGA O APP SE ESTIVER CONECTADO
+if 'bling_token' in st.session_state:
+    st.success("✅ Sistemas Conectados e Prontos para Uso!")
     st.divider()
     
     arquivo_csv = st.file_uploader("Arraste o arquivo .csv do Bling", type=['csv'])
@@ -93,7 +133,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                     item_encontrado = df[df[col_codigo].str.contains(codigo_digitado.strip(), case=False, na=False)]
                     
                     if not item_encontrado.empty:
-                        st.success(f"Item encontrado no catálogo!")
+                        st.success("Item encontrado no catálogo!")
                         for _, row in item_encontrado.iterrows():
                             st.markdown(f"### Produto: {row['Descrição']}")
                             st.write(f"**ID:** `{row['ID']}` | **SKU / Código:** `{row.get('Código', 'N/A')}`")
@@ -109,7 +149,7 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
 
             # OPÇÃO 2: IDENTIFICAÇÃO VISUAL POR CÂMERA (COM IA E % DE PRECISÃO)
             else:
-                termo = st.text_input("Qual categoria vamos buscar? (Ex: RELÓGIO):")
+                termo = st.text_input("Qual categoria vamos buscar? (Ex: RELÓGIO, ARGOLA):")
                 
                 if termo:
                     df_filtrado = df[df['Descrição'].str.contains(termo.upper(), na=False)].copy()
@@ -130,7 +170,8 @@ if 'bling_token' in st.session_state and 'gemini_key' in st.session_state:
                             
                             with st.spinner("📊 Analisando imagem e calculando compatibilidade..."):
                                 try:
-                                    client = genai.Client(api_key=st.session_state['gemini_key'])
+                                    # PUXA A CHAVE DO GOOGLE DIRETO DA VARIÁVEL FIXA NO TOPO DO CÓDIGO
+                                    client = genai.Client(api_key=CHAVE_GOOGLE_FIXA)
                                     
                                     buffered = BytesIO()
                                     img_original.save(buffered, format="JPEG")
