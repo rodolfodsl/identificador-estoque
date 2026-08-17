@@ -8,15 +8,17 @@ import json
 import os
 from google import genai
 
-st.set_page_config(page_title="Identificador Visual e Código de Barras", layout="centered")
+st.set_page_config(page_title="Identificador Visual e Consulta", layout="centered")
 st.title("🧠 Identificador Visual & Consulta por Código")
 
-# --- CREDENCIAIS FIXAS ---
+# =====================================================================
+# 1. COLOQUE SUA CHAVE DO GOOGLE AQUI (A MESMA QUE FUNCIONOU NA BARRA LATERAL)
+# =====================================================================
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmIher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
+
+# --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
-
-# A SUA CHAVE DE AUTORIZAÇÃO OFICIAL DO GOOGLE 2026
-CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6JaqpCnoNxCIrDi9A3jW1YONwm3he2Xq5c3hn9RWyjtOA"
 
 # --- GERENCIAMENTO INVISÍVEL DO TOKEN DO BLING ---
 TOKEN_FILE = "bling_tokens.json"
@@ -53,8 +55,8 @@ if 'bling_token' not in st.session_state:
 
 # --- BARRA LATERAL (APARECE APENAS NO PRIMEIRO USO PARA O BLING) ---
 if 'bling_token' not in st.session_state:
-    st.sidebar.header("🔑 Primeira Conexão")
-    st.sidebar.info("A chave do Google já está fixa. Gere o código do Bling no painel e cole aqui apenas esta vez para ativarmos o acesso permanente.")
+    st.sidebar.header("🔑 Primeira Conexão Bling")
+    st.sidebar.info("A chave do Google já está configurada no código. Gere o código do Bling no painel e cole aqui apenas esta vez para ativarmos o acesso permanente.")
     auth_code_input = st.sidebar.text_input("Código de Autorização do Bling:")
     
     if st.sidebar.button("🔗 Conectar e Salvar Sessão"):
@@ -116,11 +118,9 @@ if 'bling_token' in st.session_state:
         df = pd.read_csv(arquivo_csv, sep=';', dtype=str)
         if 'ID' in df.columns and 'Descrição' in df.columns:
             
-            # --- ABAS DE ESCOLHA: FOTO OU CÓDIGO DE BARRAS ---
             aba_escolha = st.radio("Como você quer consultar o item?", ["📷 Identificação Visual por Câmera", "🏷️ Buscar por Código de Barras / SKU"])
             st.divider()
             
-            # OPÇÃO 1: BUSCA DIRETA POR CÓDIGO DE BARRAS / SKU
             if aba_escolha == "🏷️ Buscar por Código de Barras / SKU":
                 st.info("Digite ou escaneie o código de barras/SKU impresso na etiqueta.")
                 codigo_digitado = st.text_input("Código de Barras / SKU:")
@@ -144,7 +144,6 @@ if 'bling_token' in st.session_state:
                     else:
                         st.warning("Nenhum produto encontrado com este código de barras no CSV carregado.")
 
-            # OPÇÃO 2: IDENTIFICAÇÃO VISUAL POR CÂMERA
             else:
                 termo = st.text_input("Qual categoria vamos buscar? (Ex: RELÓGIO, ARGOLA):")
                 
@@ -167,8 +166,7 @@ if 'bling_token' in st.session_state:
                             
                             with st.spinner("📊 Analisando imagem e calculando compatibilidade..."):
                                 try:
-                                    # PUXA A CHAVE DO GOOGLE DIRETO DA VARIÁVEL FIXA NO TOPO DO CÓDIGO
-                                    client = genai.Client(api_key=CHAVE_GOOGLE_FIXA)
+                                    client = genai.Client(api_key=CHAVE_GOOGLE_FIXA.strip())
                                     
                                     buffered = BytesIO()
                                     img_original.save(buffered, format="JPEG")
