@@ -14,7 +14,7 @@ st.title("🧠 Identificador Visual & Consulta por Código")
 # =====================================================================
 # CHAVE DO GOOGLE CORRETA E DEFINITIVA (CHAVE DE AUTORIZAÇÃO 'AQ.')
 # =====================================================================
-CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
+CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6JfhSMxIBvW0NhS2bkZS2fH9nCTOK5WeqtEi-DYu446Hw"
 
 # --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
