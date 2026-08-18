@@ -17,7 +17,7 @@ st.title("🧠 Identificador Visual & Consulta por Código")
 CHAVE_GOOGLE_FIXA = "AQ.Ab8RN6L8veXzF6BWmlher3zMH5kdgCIjqXUT3eKAWu4wLH6fwg"
 LINK_ONEDRIVE = "https://onedrive.live.com/personal/abe99b31d34a8839/_layouts/15/download.aspx?UniqueId=d34a8839%2D9b31%2D20e9%2D80ab%2D710500000000"
 
-# --- CREDENCIAIS FIXAS DO BLING (PARA AS FOTOS) ---
+# --- CREDENCIAIS FIXAS DO BLING ---
 CLIENT_ID = "416443567d77b7d8eb18a6f15e6e207f21d1d534".strip()
 CLIENT_SECRET = "408062f863be604e4f3a5c2edd2638962d97d32b8ffea1054b9dc9b24a25".strip()
 
@@ -72,34 +72,6 @@ if 'bling_token' not in st.session_state:
                         st.sidebar.error("Código do Bling expirado.")
                 except Exception as e:
                     st.sidebar.error(f"Erro: {e}")
-
-# --- FUNÇÃO PARA BAIXAR FOTO DO BLING ---
-def baixar_foto_bling_unica(id_produto, token):
-    headers_api = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    try:
-        resp = requests.get(f"https://api.bling.com.br/Api/v3/produtos/{id_produto}", headers=headers_api, timeout=5)
-        if resp.status_code == 200:
-            imagens = resp.json().get('data', {}).get('midia', {}).get('imagens', {})
-            link_foto = None
-            if isinstance(imagens, dict):
-                ext = imagens.get('externas', [])
-                int_img = imagens.get('internas', [])
-                if ext: link_foto = ext[0].get('link')
-                elif int_img: link_foto = int_img[0].get('linkMiniatura') or int_img[0].get('link')
-            elif isinstance(imagens, list) and len(imagens) > 0:
-                link_foto = imagens[0].get('link') or imagens[0].get('url')
-                
-            if link_foto:
-                headers = {'User-Agent': 'Mozilla/5.0'}
-                if 'bling.com.br' in link_foto: headers['Authorization'] = f'Bearer {token}'
-                url_limpa = str(link_foto).split(',')[0].split('|')[0].strip()
-                if url_limpa.startswith("//"): url_limpa = "https:" + url_limpa
-                resp_img = requests.get(url_limpa, headers=headers, timeout=5)
-                if resp_img.status_code == 200:
-                    return Image.open(BytesIO(resp_img.content)).convert('RGB')
-    except Exception:
-        pass
-    return None
 
 # SÓ CARREGA O APP SE O BLING ESTIVER CONECTADO
 if 'bling_token' in st.session_state:
@@ -174,10 +146,6 @@ if 'bling_token' in st.session_state:
                             try:
                                 client = genai.Client(api_key=CHAVE_GOOGLE_FIXA)
                                 
-                                buffered = BytesIO()
-                                img_original.save(buffered, format="JPEG")
-                                image_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                                
                                 prompt = f"""
                                 Você é o especialista sênior de estoque da loja Mocinha Biju.
                                 Analise a foto enviada e compare com a lista de produtos abaixo.
@@ -198,19 +166,12 @@ if 'bling_token' in st.session_state:
                                 Retorne APENAS o JSON puro, sem crases, sem formatação markdown e sem texto adicional.
                                 """
                                 
-                                interaction = client.interactions.create(
-                                    model="gemini-3.6-flash",
-                                    input=[
-                                        {
-                                            "type": "image",
-                                            "mime_type": "image/jpeg",
-                                            "data": image_b64,
-                                        },
-                                        {"type": "text", "text": prompt},
-                                    ],
+                                response = client.models.generate_content(
+                                    model="gemini-2.5-flash",
+                                    contents=[img_original, prompt]
                                 )
                                 
-                                texto_puro = interaction.output_text.replace('```json', '').replace('```', '').strip()
+                                texto_puro = response.text.replace('```json', '').replace('```', '').strip()
                                 itens_recomendados = json.loads(texto_puro)
                                 
                                 st.subheader("🎯 Resultados com Taxa de Precisão:")
@@ -224,7 +185,7 @@ if 'bling_token' in st.session_state:
                                         st.markdown(f"### {rank+1}º Lugar: {produto['nome']} — **Compatibilidade: {precisao}**")
                                         st.write(f"**Código de Barras:** `{produto['sku']}`")
                                         st.divider()
-                                            
+                                        
                             except Exception as e:
                                 st.error(f"Erro na análise de precisão: {e}")
     else:
